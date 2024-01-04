@@ -3,8 +3,8 @@
 
 ## DGX Docker setup
 folder: EgoEstimation/EgoLD
-container: docker attach alego
-creare img: docker run -it --shm-size 16G -v /raid/home/sampiera/Projects/EgoEstimation:/home/sampiera/EgoEstimation --name alego --gpus all sampiera/ego
+container: ```docker attach alego```
+creare img: ```docker run -it --shm-size 16G -v /raid/home/sampiera/Projects/EgoEstimation:/home/sampiera/EgoEstimation --name alego --gpus all sampiera/ego```
 
 ## Run 
 lancio test: sh test.sh
