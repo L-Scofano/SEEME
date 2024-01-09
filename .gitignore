@@ -15,3 +15,5 @@ results_ours
 __pycache__
 
 deps
+Dockerfile
+requirements.txt
