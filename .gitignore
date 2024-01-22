@@ -1,4 +1,4 @@
-EgoHMR/
+EgoHMR/data
 
 
 orient_social.npy
@@ -17,3 +17,7 @@ __pycache__
 deps
 Dockerfile
 requirements.txt
+
+/results
+/datasets
+experiments/

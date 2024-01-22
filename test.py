@@ -35,7 +35,6 @@ def get_metric_statistics(values, replication_times):
     conf_interval = 1.96 * std / np.sqrt(replication_times)
     return mean, conf_interval
 
-
 def main():
     # parse options
     cfg = parse_args(phase="test")  # parse config file
@@ -50,7 +49,6 @@ def main():
 
     # set seed
     pl.seed_everything(cfg.SEED_VALUE)
-
     # gpu setting
     if cfg.ACCELERATOR == "gpu":
         # os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
@@ -116,6 +114,7 @@ def main():
 
     all_metrics = {}
     replication_times = cfg.TEST.REPLICATION_TIMES
+
     # calculate metrics
     for i in range(replication_times):
         metrics_type = ", ".join(cfg.METRIC.TYPE)
@@ -128,6 +127,7 @@ def main():
             mm_metrics = trainer.test(model, datamodule=datasets)[0]
             metrics.update(mm_metrics)
             datasets.mm_mode(False)
+        breakpoint()
         for key, item in metrics.items():
             if key not in all_metrics:
                 all_metrics[key] = [item]

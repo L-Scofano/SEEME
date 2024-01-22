@@ -1,0 +1,7 @@
+/checkpoints
+/data
+/output_results_release
+__pycache__
+.DS_Store
+.idea
+scene_encoder.py
