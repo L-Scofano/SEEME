@@ -18,6 +18,7 @@ deps
 Dockerfile
 requirements.txt
 
-/results
-/datasets
-experiments/
+/data
+datasets
+experiments
+results
