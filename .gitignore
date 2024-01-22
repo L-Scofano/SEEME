@@ -17,3 +17,5 @@ __pycache__
 deps
 Dockerfile
 requirements.txt
+
+/data
