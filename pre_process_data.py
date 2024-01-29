@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 import os
 import csv
+import joblib
 
 # * Visualize what is needed
 # Define the file path
@@ -20,6 +21,14 @@ except FileNotFoundError:
 
 except Exception as e:
     print(f"Error: {e}")
+
+# * Open processed Gimo data
+gimo_data_kinpoly = '/media/hdd/luca_s/code/EgoRepo/data/gimo_processed_for_kinpoly/gimo_kinpoly_motion.p'
+load_gimo = joblib.load(gimo_data_kinpoly)
+
+
+
+
 
 def initialize_dict(dict_for_rec):
     dict_for_rec = {'video': [], # (N)
@@ -48,10 +57,10 @@ def initialize_dict(dict_for_rec):
     return dict_for_rec
 
 # * From here we start creating the dict
-dataroot = '/media/hdd/luca_s/code/SEE-ME/datasets/gimo_pre_processed/segmented_ori_data'
-dataroot_poses = '/media/hdd/luca_s/code/SEE-ME/datasets/gimo_pre_processed/smplx_npz'
+dataroot = '/media/hdd/luca_s/code/SEE-ME/datasets/GIMO/segmented_ori_data'
+dataroot_poses = '/media/hdd/luca_s/code/SEE-ME/datasets/GIMO/smplx_npz'
 # * Destination dir
-destination_dir = '/media/hdd/luca_s/code/SEE-ME/datasets/gimo_pre_processed/ready_to_use'
+destination_dir = '/media/hdd/luca_s/code/SEE-ME/datasets/GIMO/processed'
 
 # * Open .csv file that contains info
 training_dict = {}
@@ -149,6 +158,12 @@ for scene in scenes:
             # dict_for_rec['interactee']['body_pose'] = body_pose_list
             # dict_for_rec['interactee']['transl'] = transl_list
             # ! Not present until here
+
+            # * Creaty random values for the interactee
+            dict_for_rec['interactee']['betas'] = np.random.rand(60,1,10)
+            dict_for_rec['interactee']['global_orient'] = np.random.rand(60,1,3)
+            dict_for_rec['interactee']['body_pose'] = np.random.rand(60,1,21*3)
+            dict_for_rec['interactee']['transl'] = np.random.rand(60,1,3)
 
             dict_for_rec['wearer']['betas'] = beta_split
             dict_for_rec['wearer']['global_orient'] = global_orient_split
