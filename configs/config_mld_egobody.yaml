@@ -3,7 +3,7 @@
 ####################################
 
 # Experiment name, more details in Section 'Experiment Name Explanation'
-NAME: s2_PredictALL_interactee
+NAME: s2_scene_interactee_cfg
 # Debug mode. Set to True will enter the debug mode, then the program will
 # 1. use a tiny dataset for trianing and evaluation
 # 2. validate more intensively
@@ -12,11 +12,12 @@ DEBUG: False
 # Devices. Optional: “cpu”, “gpu”
 ACCELERATOR: 'gpu'
 # Index of GPUs eg. [0] or [0,1,2,3]
-DEVICE: [3,4,5,6] # [0,5,6,7]
-TEST_DEVICE: [7]
+DEVICE: [3,4] # [0,5,6,7]
+TEST_DEVICE: [5]
 ESTIMATE: 'wearer' # 'interactee' or 'wearer'
 DATA_TYPE: 'angle' # 'angle' or 'rot6d'
 MOTION_LENGTH: 60
+DATASET_NAME: 'egobody'
 #####################################
 # The following are training settings
 #####################################
@@ -118,7 +119,7 @@ model:
   num_head: 1 #4 # number of head layers
   droupout: 0.1 # dropout rate
   activation: gelu # activation type
-  guidance_scale: 1.0 #7.5 #!!
+  guidance_scale: 7.5 #1.0 #7.5 #!!
   guidance_uncondp: 0.1 # 0.1 0.25
   nfeats: 75 #85
   njoints: 23
@@ -134,7 +135,7 @@ LOGGER:
   VAL_EVERY_STEPS: 200
   TENSORBOARD: True
   WANDB:
-    PROJECT: ego-estimation #null
+    PROJECT: null #ego-estimation #null
     OFFLINE: False
     RESUME_ID: null
     ENTITY: 'pinlab-sapienza'

@@ -10,6 +10,7 @@ def create_logger(cfg, phase='train'):
     # root dir set by cfg
     root_output_dir = Path(cfg.FOLDER)
     # set up logger
+    print(root_output_dir, root_output_dir.exists())
     if not root_output_dir.exists():
         print('=> creating {}'.format(root_output_dir))
         root_output_dir.mkdir()
