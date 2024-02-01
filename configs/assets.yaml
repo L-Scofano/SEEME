@@ -24,6 +24,9 @@ DATASET:
   EGOBODY:
     ROOT: ./datasets/EgoBody
     SPLIT_ROOT: ./datasets/EgoBody
+  GIMO:
+    ROOT: ./datasets/GIMO
+    SPLIT_ROOT: ./datasets/GIMO
 
 model:
   bert_path: './deps/distilbert-base-uncased' # bert model path for all text encoders

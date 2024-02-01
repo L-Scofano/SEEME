@@ -60,6 +60,8 @@ class MLD(BaseModel):
         self.condition = cfg.model.condition
         self.is_vae = cfg.model.vae
         self.predict_epsilon = cfg.TRAIN.ABLATION.PREDICT_EPSILON
+        self.name_dataset = cfg.DATASET_NAME
+
         self.nfeats = 144 if cfg.DATA_TYPE=='rot6d' else 72
         
         self.njoints = cfg.model.njoints
@@ -80,7 +82,10 @@ class MLD(BaseModel):
         self.see_future = cfg.TEST.SEE_FUTURE
 
         self.predict_transl = cfg.TRAIN.ABLATION.PREDICT_TRANSL
-        self.nfeats = 75 if self.predict_transl else 72
+        if self.name_dataset == 'egobody':
+            self.nfeats = 75 if self.predict_transl else 72
+        elif self.name_dataset == 'gimo':
+            self.nfeats = 69 if self.predict_transl else 66
 
         self.data_type = cfg.DATA_TYPE
 
@@ -100,7 +105,7 @@ class MLD(BaseModel):
             self.smpl_model = smplx.SMPL(
                 model_path=smpl_path,
                 batch_size=cfg.TRAIN.BATCH_SIZE, 
-                gender='neutral',)
+                gender='neutral')
                 #create_transl=False)
         elif self.data_type=='rot6d':
             self.smpl_model = smplx.create('./datasets/data/smpl/', model_type='smpl', gender='neutral').double()
@@ -642,28 +647,54 @@ class MLD(BaseModel):
                 feats_ref = torch.cat([feats_ref, t_ref], dim=-1)
             
             feats_ref = self.renorm(feats_ref)
-            body_pose_ref = feats_ref[:, :min_len, 3:72].reshape(-1, 23*3).float()
-            #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
-            betas_ref = beta[:, index_ref, :min_len, :].reshape(-1, 10).float()
-            global_pose_ref = feats_ref[:, :min_len, :3].reshape(-1, 3).float()
-            #transl_ref = feats_ref[:, :min_len, 69+10+3:].view(-1, 3)
-            transl_ref = feats_ref[:,:,-3:].reshape(-1, 3).float() if self.predict_transl else transl[:, index_ref, :min_len, :].reshape(-1, 3).float()
-            joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, global_orient=global_pose_ref, transl=transl_ref,pose2rot=True)
-            joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:24]
+            if self.name_dataset == 'egobody':
+                
+                body_pose_ref = feats_ref[:, :min_len, 3:72].reshape(-1, 23*3).float()
+                #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
+                betas_ref = beta[:, index_ref, :min_len, :].reshape(-1, 10).float()
+                global_pose_ref = feats_ref[:, :min_len, :3].reshape(-1, 3).float()
+                #transl_ref = feats_ref[:, :min_len, 69+10+3:].view(-1, 3)
+                transl_ref = feats_ref[:,:,-3:].reshape(-1, 3).float() if self.predict_transl else transl[:, index_ref, :min_len, :].reshape(-1, 3).float()
+                joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, global_orient=global_pose_ref, transl=transl_ref,pose2rot=True)
+                joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:24]
+                
+                
+                feats_rst = feats_rst.contiguous()
+                feats_rst = self.renorm(feats_rst)
+                body_pose_rst = feats_rst[:, :min_len, 3:72].reshape(-1, 23*3).float() #! COMMENT
+                #! SOTA WERE HERE -> body_pose_rst = feats_ref[:, :min_len, 3:72].reshape(-1, 23*3).float() # Global orientation is not predicted
+                #betas_rst = feats_rst[:, :min_len, 69:69+10].view(-1, 10)
+                betas_rst = beta[:, index_ref, :min_len, :].reshape(-1, 10).float()
+                global_pose_rst = feats_rst[:, :min_len, :3].reshape(-1, 3).float()
+                #transl_rst = feats_rst[:, :min_len, 69+10+3:].view(-1, 3)
+                transl_rst = feats_rst[:, :min_len, 72:].reshape(-1, 3).float() if self.predict_transl else transl[:, index_ref, :min_len, :].reshape(-1, 3).float()
+                joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_rst, transl=transl_rst,pose2rot=True)
+                joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:24]
             
-            
-            feats_rst = feats_rst.contiguous()
-            feats_rst = self.renorm(feats_rst)
-            body_pose_rst = feats_rst[:, :min_len, 3:72].reshape(-1, 23*3).float() #! COMMENT
-            #! SOTA WERE HERE -> body_pose_rst = feats_ref[:, :min_len, 3:72].reshape(-1, 23*3).float() # Global orientation is not predicted
-            #betas_rst = feats_rst[:, :min_len, 69:69+10].view(-1, 10)
-            betas_rst = beta[:, index_ref, :min_len, :].reshape(-1, 10).float()
-            global_pose_rst = feats_rst[:, :min_len, :3].reshape(-1, 3).float()
-            #transl_rst = feats_rst[:, :min_len, 69+10+3:].view(-1, 3)
-            transl_rst = feats_rst[:, :min_len, 72:].reshape(-1, 3).float() if self.predict_transl else transl[:, index_ref, :min_len, :].reshape(-1, 3).float()
-            joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_rst, transl=transl_rst,pose2rot=True)
-            joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:24]
-
+            elif self.name_dataset == 'gimo':
+                body_pose_ref = feats_ref[:, :min_len, 3:66].reshape(-1, 21*3).float()
+                #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
+                betas_ref = beta[:, index_ref, :min_len, :].reshape(-1, 10).float()
+                global_pose_ref = feats_ref[:, :min_len, :3].reshape(-1, 3).float()
+                #transl_ref = feats_ref[:, :min_len, 69+10+3:].view(-1, 3)
+                body_pose_ref = torch.cat([body_pose_ref, torch.zeros(body_pose_ref.shape[0], 6).to(body_pose_ref.device)], dim=-1)
+                transl_ref = feats_ref[:,:,-3:].reshape(-1, 3).float() if self.predict_transl else transl[:, index_ref, :min_len, :].reshape(-1, 3).float()
+                joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, global_orient=global_pose_ref, transl=transl_ref,pose2rot=True)
+                joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:21]
+                
+                
+                feats_rst = feats_rst.contiguous()
+                feats_rst = self.renorm(feats_rst)
+                body_pose_rst = feats_rst[:, :min_len, 3:66].reshape(-1, 21*3).float() #! COMMENT
+                #! SOTA WERE HERE -> body_pose_rst = feats_ref[:, :min_len, 3:66].reshape(-1, 21*3).float() # Global orientation is not predicted
+                #betas_rst = feats_rst[:, :min_len, 69:69+10].view(-1, 10)
+                betas_rst = beta[:, index_ref, :min_len, :].reshape(-1, 10).float()
+                global_pose_rst = feats_rst[:, :min_len, :3].reshape(-1, 3).float()
+                #transl_rst = feats_rst[:, :min_len, 69+10+3:].view(-1, 3)
+                transl_rst = feats_rst[:, :min_len, -3:].reshape(-1, 3).float() if self.predict_transl else transl[:, index_ref, :min_len, :].reshape(-1, 3).float()
+                body_pose_rst = torch.cat([body_pose_rst, torch.zeros(body_pose_rst.shape[0], 6).to(body_pose_rst.device)], dim=-1)
+                joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_ref, transl=transl_rst,pose2rot=True) #! change orientation from ref to rst
+                joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:21]
             
 
            
@@ -1117,47 +1148,79 @@ class MLD(BaseModel):
             feats_ref = self.renorm(feats_ref)
 
 
+            if self.name_dataset == 'egobody':
+                body_pose_ref = feats_ref[:, :min_len, 3:72].reshape(-1, 23*3).float()
+                #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
+                betas_ref = beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
+                global_pose_ref = feats_ref[:, :min_len, :3].reshape(-1, 3).float()
+                orientation_quat_ref = aa_to_quat(global_pose_ref)
+                #transl_ref = feats_ref[:, :min_len, 69+10+3:].view(-1, 3)
+                transl_ref = feats_ref[:,:,-3:].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+                joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, 
+                                            global_orient=global_pose_ref, 
+                                            pose2rot=True, transl=transl_ref)
+                
+                joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:24]
+                # Add translation
+                #joints_ref = joints_ref + transl[:, 0, :min_len, :].unsqueeze(2).repeat(1, 1, 24, 1)
+                
+                # Save
+                #np.save('joints_ref_s1ego11.npy', joints_ref.detach().cpu().numpy())
+                
+                
+                feats_rst = feats_rst.contiguous()
+                feats_rst = self.renorm(feats_rst)
+                body_pose_rst = feats_rst[:, :min_len, 3:72].reshape(-1, 23*3).float()
+                #body_pose_rst = feats_rst[:, :min_len, 3:72].reshape(-1, 23*3).float()
+                #betas_rst = feats_rst[:, :min_len, 69:69+10].view(-1, 10)
+                betas_rst = beta_predicted.reshape(-1, 10).float() if self.pred_betas else beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
+                #global_pose_rst = feats_rst[:, :min_len, :3].reshape(-1, 3).float()
+                global_pose_rst = feats_ref[:, :min_len, :3].reshape(-1, 3).float() if self.pred_global_orient==False else feats_rst[:, :min_len, :3].reshape(-1, 3).float()
+                orientation_quat_rst = aa_to_quat(global_pose_rst)
+                
+                #transl_rst = feats_rst[:, :min_len, 69+10+3:].view(-1, 3)
+                
+                #transl_rst = ego_transl.reshape(-1,3).float() if self.transl_egoego else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+                transl_rst = feats_rst[:, :min_len, 72:75].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+                
+                joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_rst,
+                                                pose2rot=True,transl=transl_rst)
+                joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:24]
+                # Add translation
+                #joints_rst = joints_rst + transl[:, 0, :min_len, :].unsqueeze(2).repeat(1, 1, 24, 1)
+                #np.save('joints_rst_s1ego11.npy', joints_rst.detach().cpu().numpy())
             
-            body_pose_ref = feats_ref[:, :min_len, 3:72].reshape(-1, 23*3).float()
-            #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
-            betas_ref = beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
-            global_pose_ref = feats_ref[:, :min_len, :3].reshape(-1, 3).float()
-            orientation_quat_ref = aa_to_quat(global_pose_ref)
-            #transl_ref = feats_ref[:, :min_len, 69+10+3:].view(-1, 3)
-            transl_ref = feats_ref[:,:,-3:].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
-            joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, 
-                                        global_orient=global_pose_ref, 
-                                        pose2rot=True, transl=transl_ref)
-            
-            joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:24]
-            # Add translation
-            #joints_ref = joints_ref + transl[:, 0, :min_len, :].unsqueeze(2).repeat(1, 1, 24, 1)
-            
-            # Save
-            #np.save('joints_ref_s1ego11.npy', joints_ref.detach().cpu().numpy())
-            
-            
-            feats_rst = feats_rst.contiguous()
-            feats_rst = self.renorm(feats_rst)
-            body_pose_rst = feats_rst[:, :min_len, 3:72].reshape(-1, 23*3).float()
-            #body_pose_rst = feats_rst[:, :min_len, 3:72].reshape(-1, 23*3).float()
-            #betas_rst = feats_rst[:, :min_len, 69:69+10].view(-1, 10)
-            betas_rst = beta_predicted.reshape(-1, 10).float() if self.pred_betas else beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
-            #global_pose_rst = feats_rst[:, :min_len, :3].reshape(-1, 3).float()
-            global_pose_rst = feats_ref[:, :min_len, :3].reshape(-1, 3).float() if self.pred_global_orient==False else feats_rst[:, :min_len, :3].reshape(-1, 3).float()
-            orientation_quat_rst = aa_to_quat(global_pose_rst)
-            
-            #transl_rst = feats_rst[:, :min_len, 69+10+3:].view(-1, 3)
-            
-            #transl_rst = ego_transl.reshape(-1,3).float() if self.transl_egoego else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
-            transl_rst = feats_rst[:, :min_len, 72:75].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
-            
-            joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_rst,
-                                            pose2rot=True,transl=transl_rst)
-            joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:24]
-            # Add translation
-            #joints_rst = joints_rst + transl[:, 0, :min_len, :].unsqueeze(2).repeat(1, 1, 24, 1)
-            #np.save('joints_rst_s1ego11.npy', joints_rst.detach().cpu().numpy())
+            elif self.name_dataset == 'gimo':
+                body_pose_ref = feats_ref[:, :min_len, 3:66].reshape(-1, 21*3).float()
+                #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
+                betas_ref = beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
+                global_pose_ref = feats_ref[:, :min_len, :3].reshape(-1, 3).float()
+                #transl_ref = feats_ref[:, :min_len, 69+10+3:].view(-1, 3)
+                body_pose_ref = torch.cat([body_pose_ref, torch.zeros(body_pose_ref.shape[0], 6).to(body_pose_ref.device)], dim=-1)
+                transl_ref = feats_ref[:,:,-3:].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+                joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, global_orient=global_pose_ref, transl=transl_ref,pose2rot=True)
+                joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:24]
+                orientation_quat_ref = aa_to_quat(global_pose_ref)
+
+                
+                
+                
+                feats_rst = feats_rst.contiguous()
+                feats_rst = torch.cat([feats_rst[:, :, :66], feats_rst[:, :, -3:]], dim=-1) # ! Change back for training
+                feats_rst = self.renorm(feats_rst)
+                
+                body_pose_rst = feats_rst[:, :min_len, 3:66].reshape(-1, 21*3).float() #! COMMENT
+                #! SOTA WERE HERE -> body_pose_rst = feats_ref[:, :min_len, 3:66].reshape(-1, 21*3).float() # Global orientation is not predicted
+                #betas_rst = feats_rst[:, :min_len, 69:69+10].view(-1, 10)
+                betas_rst = beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
+                global_pose_rst = feats_rst[:, :min_len, :3].reshape(-1, 3).float()
+                #transl_rst = feats_rst[:, :min_len, 69+10+3:].view(-1, 3)
+                transl_rst = feats_rst[:, :min_len, -3:].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+                body_pose_rst = torch.cat([body_pose_rst, torch.zeros(body_pose_rst.shape[0], 6).to(global_pose_rst.device)], dim=-1)
+                joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_rst, transl=transl_rst,pose2rot=True)
+                joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:24]
+                orientation_quat_rst = aa_to_quat(global_pose_rst)
+
 
    
 
@@ -1200,20 +1263,37 @@ class MLD(BaseModel):
             #print(np.array(utils_['video'])[24,6], np.array(utils_['recording_utils']['frame'])[24,6])
             #quit()
         
-        rs_set = {
-            "m_ref": feats_ref,
-            "m_rst": feats_rst,
-            "joints_ref": joints_ref,
-            "joints_rst": joints_rst,
-            "orientation_quat_rst": orientation_quat_rst,
-            "orientation_quat_ref": orientation_quat_ref,
-            'root_interactee': root_interactee,
-            'joints_interactee': joints_int,
-            'orientation_quat_int': orientation_quat_int,
-            'joints_interactee_gt': joints_int_gt if self.pose_estimation_task else None,
-            'lengths': lengths,
-            'list_names': dict_images 
-        }
+        if self.name_dataset == 'egobody':
+            rs_set = {
+                "m_ref": feats_ref,
+                "m_rst": feats_rst,
+                "joints_ref": joints_ref,
+                "joints_rst": joints_rst,
+                "orientation_quat_rst": orientation_quat_rst,
+                "orientation_quat_ref": orientation_quat_ref,
+                'root_interactee': root_interactee,
+                'joints_interactee': joints_int,
+                'orientation_quat_int': orientation_quat_int,
+                'joints_interactee_gt': joints_int_gt if self.pose_estimation_task else None,
+                'lengths': lengths,
+                'list_names': dict_images 
+            }
+        elif self.name_dataset == 'gimo':
+            rs_set = {
+                "m_ref": feats_ref,
+                "m_rst": feats_rst,
+                "joints_ref": joints_ref,
+                "joints_rst": joints_rst,
+                "orientation_quat_rst": orientation_quat_rst,
+                "orientation_quat_ref": orientation_quat_ref,
+                'root_interactee': root_interactee,
+                'joints_interactee': joints_int,
+                'orientation_quat_int': orientation_quat_int,
+                'joints_interactee_gt': joints_int_gt if self.pose_estimation_task else None,
+                'lengths': lengths,
+                'list_names': {} 
+
+            }
         return rs_set
 
 
@@ -1395,7 +1475,7 @@ class MLD(BaseModel):
                     if eval(f"self.cfg.{phase.upper()}.DATASETS")[0].lower(
                     ) not in [
                             "humanml3d",
-                            "kit", 'egobody'
+                            "kit", 'egobody', "gimo"
                     ]:
                         raise TypeError(
                             "APE and AVE metrics only support humanml3d and kit datasets now"

@@ -37,7 +37,9 @@ from .utils_egobody.geometry import rot_aa
 
 from EgoHMR.utils.konia_transform import rotation_matrix_to_angle_axis as rotmat2aa
 
+import trimesh
 
+from scipy.spatial.transform import Rotation
 
 
 # import spacy
@@ -1111,7 +1113,7 @@ class EgoBodyData3(data.Dataset):
         if droid_slam_cut:
             motion_dir = pjoin(motion_dir, split + '_droidslam_8') if split=='test' else pjoin(motion_dir, split)
         else:
-            motion_dir = pjoin(motion_dir, split)
+            motion_dir = pjoin(motion_dir, split) # './datasets/EgoBody/our_process_smpl_split_NEW/val'
 
         self.condition = condition
         self.interactee_pred = interactee_pred
@@ -1260,7 +1262,7 @@ class EgoBodyData3(data.Dataset):
             scene_pcd_verts = self.scene_verts_dict[self.scene_map_dict[original_imagename]]  # [20000, 3], in kinect main coord
             scene_pcd_verts = points_coord_trans(scene_pcd_verts, pcd_trans_kinect2pv)
             # to tensor
-            scene_pcd_verts = torch.tensor(scene_pcd_verts, dtype=torch.float32)            
+            scene_pcd_verts = torch.tensor(scene_pcd_verts, dtype=torch.float32) # [20000, 3]       
             
         # Remove key ['original_imgname'] from recording_utils
         #recording_utils.pop('original_imgname', None)
@@ -1638,6 +1640,609 @@ class EgoBodyData3(data.Dataset):
             return motion, transl, beta, utils, scene_pcd_verts, images, length
         elif 'scene' not in self.condition and 'image' in self.condition:
             return motion, transl, beta, utils, images, length
+        else:
+            return motion, transl, beta, utils, length
+        
+class GimoData(data.Dataset):
+
+    def __init__(
+            self,
+            mean, 
+            std,
+            split_file,
+            motion_dir,
+            condition=None,
+            interactee_pred=None,
+            pred_global_orient=False,
+            pred_betas=False,
+            transl_egoego=False,
+            global_orient_egoego=False,
+            predict_transl=False,
+            motion_length=60,
+            data_type='angle',
+            droid_slam_cut=False,
+            pose_estimation_task=False,
+            #max_motion_length,
+            #min_motion_length,
+            tiny=False,
+            debug=False,
+            progress_bar=True,
+            **kwargs,
+    ):
+        
+        #self.max_motion_length = max_motion_length
+        #self.min_motion_length = min_motion_length
+      
+        if data_type == 'angle':
+            self.numdims = 66 #66 # 21*3+3+3
+            self.go_dims = 3
+            self.mean = np.load('./datasets/GIMO/processed/mean.npy') #mean
+            self.std = np.load('./datasets/GIMO/processed/std.npy') #std
+        elif data_type == 'rot6d':
+            self.numdims = 132
+            self.go_dims = 6
+            self.mean = np.load('./datasets/GIMO/processed/mean_rot6d.npy') #mean
+            self.std = np.load('./datasets/GIMO/processed/std_rot6d.npy') #std
+
+
+        split = split_file.split("/")[-1].split(".")[0]
+        self.split = split
+        # !Gimo does not contain any val split
+        if split == 'val':
+            split = 'test'
+        self.droid_slam_cut = droid_slam_cut
+        if droid_slam_cut:
+            motion_dir = pjoin(motion_dir, split + '_droidslam_8') if split=='test' else pjoin(motion_dir, split)
+        else:
+            motion_dir = pjoin(motion_dir, split) # './datasets/EgoBody/our_process_smpl_split_NEW/val'
+
+        self.condition = condition
+        self.interactee_pred = interactee_pred
+        self.pred_global_orient = pred_global_orient
+        self.pred_betas = pred_betas
+
+        self.global_orient_egoego = global_orient_egoego
+        self.transl_egoego = transl_egoego
+
+        self.predict_transl = predict_transl
+
+        self.pose_estimation_task = pose_estimation_task
+
+        self.motion_length = motion_length
+
+        self.data_type = data_type
+
+        #self.mean = mean
+        #self.std = std
+        
+        data_dict = {}
+        #id_list = []
+        #with cs.open(split_file, "r") as f:
+        #    for line in f.readlines():
+        #        id_list.append(line.strip())
+        #self.id_list = id_list
+
+        id_list = os.listdir(motion_dir)
+        #if self.droid_slam_cut:
+        #    id_list = id_list[:64]
+
+        if tiny or debug:
+            progress_bar = False
+            maxdata = 10 if tiny else 100
+        else:
+            maxdata = 1e10
+
+        if progress_bar:
+            enumerator = enumerate(
+                track(
+                    id_list,
+                    f"Loading Gimo {split_file.split('/')[-1].split('.')[0]}",
+                ))
+        else:
+            enumerator = enumerate(id_list)
+
+        count = 0
+        bad_count = 0
+        new_name_list = []
+        length_list = []
+        for i, name in enumerator:
+            if count > maxdata:
+                break
+            try:
+                motion = np.load(pjoin(motion_dir, name), allow_pickle=True).item()
+                data_dict[name] = {
+                    "video": motion['video'],
+                    "recording_utils": motion['recording_utils'],
+                    "interactee": motion['interactee'],
+                    'wearer': motion['wearer'],
+                }
+                
+                new_name_list.append(name)
+                length_list.append(len(motion))
+                count += 1
+            except:
+                pass
+        
+        name_list, length_list = zip(
+            *sorted(zip(new_name_list, length_list), key=lambda x: x[1]))
+        
+        self.length_arr = np.array(length_list)
+        self.data_dict = data_dict
+        self.nfeats = 63 # 21*3 (check?)
+        self.name_list = name_list
+
+        # if 'scene' in condition:
+        #     self.add_trans = np.array([[1.0, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        #     map_path = './datasets/EgoBody/Egohmr_scene_preprocess_s1_release/map_dict_{}.pkl'.format(split.split('.')[0])
+        #     with open(map_path, 'rb') as f:
+        #         self.scene_map_dict = pkl.load(f)
+        #     pcd_path = './datasets/EgoBody/Egohmr_scene_preprocess_s1_release/pcd_verts_dict_{}.pkl'.format(split.split('.')[0])
+        #     with open(pcd_path, 'rb') as f:
+        #         self.scene_verts_dict = pkl.load(f)
+        #     with open(os.path.join('./datasets/EgoBody/', 'transf_matrices_all_seqs.pkl'), 'rb') as fp:
+        #         self.transf_matrices = pkl.load(fp)
+        
+        # if self.interactee_pred:
+        #     self.interactee_pred_dict = {}
+        #     with open(os.path.join('./datasets/EgoBody/results_egohmr/results_interactee_test.pkl'), 'rb') as fp:
+        #         self.interactee_pred_dict = pkl.load(fp)
+
+        # if self.global_orient_egoego or self.transl_egoego:
+        #     file_ = './datasets/EgoBody/trans_and_rot_pred/data.pkl'
+        #     with open(file_, 'rb') as fp:
+        #         self.pred_egoego = pkl.load(fp)
+
+
+    def __len__(self):
+        return len(self.name_list)
+    
+
+    
+    def get_transf_matrices_per_frame(self, timestamp, seq_name):
+        transf_mtx_seq = self.transf_matrices[seq_name]
+        kinect2holo = transf_mtx_seq['trans_kinect2holo'].astype(np.float32)  # [4,4], one matrix for all frames in the sequence
+        holo2pv_dict = transf_mtx_seq['trans_world2pv']  # a dict, # frames items, each frame is a 4x4 matrix
+        #timestamp = basename(img_name).split('_')[0]
+        holo2pv = holo2pv_dict[str(timestamp)].astype(np.float32)
+        return kinect2holo, holo2pv
+    
+    def __getitem__(self, item):
+        idx = item
+        data = self.data_dict[self.name_list[idx]]
+        #motion = data["motion"]
+
+        
+
+        video = data['video']
+        recording_utils = data['recording_utils']
+        interactee = data['interactee']
+        wearer = data['wearer']
+
+
+        if self.pose_estimation_task:
+            interactee_gt_pose_estimation = data['interactee']
+
+        list_imgname = []
+        for imgname in recording_utils['original_imgname']:
+            list_imgname.append(str(imgname))
+        
+        #img_name_dict = torch.tensor(list_imgname)
+        #list_imgname = recording_utils['original_imgname']
+        
+        # * Load the scene point cloud
+        if 'scene' in self.condition:
+            original_imagename = data['video'][0]
+            scene = original_imagename.split('/')[-4]
+            temp_root_scene = 'datasets/gimo_raw/group/GIMO' # ! This path needs to be added to the config file
+
+            scale = 1.03
+            transform_norm = np.loadtxt(os.path.join(temp_root_scene, scene, 'scene_obj', 'transform_norm.txt')).reshape(
+            (4, 4))
+            transform_norm[:3, 3] /= scale
+
+            random_ori = 0
+            random_rotation = Rotation.from_euler('xyz', [0, random_ori, 0], degrees=True).as_matrix()
+            
+            # transform_path = self.dataset_info['transformation'][i]
+            # start_frame = self.dataset_info['start_frame'][i]
+            # transform_info = json.load(open(os.path.join(self.dataroot, scene, seq, transform_path), 'r'))
+            # scale = transform_info['scale']
+            # trans_pose2scene = np.array(transform_info['transformation'])
+            # trans_scene2pose = np.linalg.inv(trans_pose2scene)
+
+            scene_ply = trimesh.load_mesh(os.path.join(temp_root_scene, scene, 'scene_obj', 'scene_downsampled.ply'))
+            scene_points = scene_ply.vertices
+            scene_points = scene_points[np.random.choice(range(len(scene_points)), 20000)] # 20000 sampled points in the Point Cloud
+    
+            # Rescale the scene point cloud
+            scene_points *= 1/scale
+            scene_points = (transform_norm[:3, :3] @ scene_points.T + transform_norm[:3, 3:]).T
+
+            if self.split == 'train':
+                sigma = 0.01
+                scene_points = (random_rotation @ scene_points.T).T
+                scene_points += np.random.normal(loc=0, scale=sigma, size=scene_points.shape)
+
+            scene_pcd_verts = torch.from_numpy(scene_points).float()
+                
+
+
+
+        
+
+        utils_ = {'video': video, 'recording_utils': recording_utils}
+
+    
+        fx = torch.tensor(np.array(recording_utils['fx'])).reshape(-1,1)
+        cx = torch.tensor(np.array(recording_utils['cx'])).reshape(-1,1)
+        cy = torch.tensor(np.array(recording_utils['cy'])).reshape(-1,1)
+        center = torch.tensor(np.array(recording_utils['center'])).reshape(-1,2)
+        scale = torch.tensor(np.array(recording_utils['scale'])).reshape(-1,1)
+        #utils = torch.cat([fx, cx, cy, center, scale], dim=1)
+        
+        item_length = len(video)
+
+        # if self.interactee_pred:
+        #     images_in_batch = recording_utils['original_imgname']
+        #     full_go = []
+        #     full_bp = []
+        #     full_betas = []
+            
+        #     #print(list_imgname)
+        #     for image in images_in_batch:
+        #         interactee_gt = self.interactee_pred_dict[image]
+        #         global_orient_gt = interactee_gt['smpl_parameters']['global_orient']
+        #         body_pose_gt = interactee_gt['smpl_parameters']['body_pose']
+        #         betas_gt = interactee_gt['smpl_parameters']['betas']
+        #         full_go.append(global_orient_gt)
+        #         full_bp.append(body_pose_gt)
+        #         full_betas.append(betas_gt)
+
+        
+
+        #     smpl_params_interactee = {'global_orient': np.array(full_go[:item_length]).reshape(-1,1,3),
+        #                   'transl': np.array(interactee['transl']), # !!! NOT FROM EgoHMR !!!
+        #                   'body_pose': np.array(full_bp[:item_length]).reshape(-1,1,69),#.reshape(-1,23,3),
+        #                   'betas': np.array(full_betas[:item_length]).reshape(-1,1,10),
+        #                  }
+                                      
+            
+        # else:
+        smpl_params_interactee = {'global_orient': np.array(interactee['global_orient']),
+                    'transl': np.array(interactee['transl']),
+                    'body_pose': np.array(interactee['body_pose']),
+                    'betas': np.array(interactee['betas']),
+                    }
+
+        if self.pose_estimation_task:
+            smpl_params_interactee_pe_gt = {'global_orient': np.array(interactee_gt_pose_estimation['global_orient']),
+                       'transl': np.array(interactee_gt_pose_estimation['transl']),
+                       'body_pose': np.array(interactee_gt_pose_estimation['body_pose']),
+                       'betas': np.array(interactee_gt_pose_estimation['betas']),
+                      }
+
+
+        if self.global_orient_egoego or self.transl_egoego:
+            pred_egoego_transl = []
+            pred_egoego_go = []
+            for i, img_path in enumerate(recording_utils['original_imgname']):
+                try:
+                    trns = self.pred_egoego[img_path]['transl']
+                    gor = self.pred_egoego[img_path]['global_orient']
+                except:
+                    trns = pred_egoego_transl[-1] if len(pred_egoego_transl) > 0 else [0., 0., 0.]
+                    gor = pred_egoego_go[-1] if len(pred_egoego_go) > 0 else [[0.,0.,0.]*3]
+
+                pred_egoego_transl.append(trns)
+                pred_egoego_go.append(gor)
+            pred_egoego_transl = torch.tensor(np.array(pred_egoego_transl))
+
+            pred_egoego_go = torch.tensor(np.array(pred_egoego_go))
+            pred_egoego_global_orient = rotmat2aa(pred_egoego_go.reshape(-1, 3, 3))
+
+
+            
+
+        smpl_params_wearer = {'global_orient': np.array(wearer['global_orient']),
+                              'transl': np.array(wearer['transl']),
+                                'body_pose': np.array(wearer['body_pose']),
+                                'betas': np.array(wearer['betas']),
+                                }
+        
+        if self.data_type == 'rot6d':
+            out_rot_wear_bp = aa_to_rotmat(torch.tensor(smpl_params_wearer['body_pose'].reshape(-1,23,3)).reshape(-1, 3)).view(-1, 23, 3, 3)
+            out_rot_wear_go = aa_to_rotmat(torch.tensor(smpl_params_wearer['global_orient'].reshape(-1,1,3)).reshape(-1, 3)).view(-1, 1, 3, 3)
+
+            out_rot_int_bp = aa_to_rotmat(torch.tensor(smpl_params_interactee['body_pose'].reshape(-1,23,3)).reshape(-1, 3)).view(-1, 23, 3, 3)
+            out_rot_int_go = aa_to_rotmat(torch.tensor(smpl_params_interactee['global_orient'].reshape(-1,1,3)).reshape(-1, 3)).view(-1, 1, 3, 3)
+
+            out_6d_wear_bp = rotmat_to_rot6d(out_rot_wear_bp.reshape(-1, 3, 3)).reshape(-1, 1, 23*6)
+            out_6d_wear_go = rotmat_to_rot6d(out_rot_wear_go.reshape(-1, 3, 3)).reshape(-1, 1, 6)
+
+            out_6d_int_bp = rotmat_to_rot6d(out_rot_int_bp.reshape(-1, 3, 3)).reshape(-1, 1, 23*6)
+            out_6d_int_go = rotmat_to_rot6d(out_rot_int_go.reshape(-1, 3, 3)).reshape(-1, 1, 6)
+
+            smpl_params_interactee['body_pose'] = out_6d_int_bp.numpy()
+            smpl_params_interactee['global_orient'] = out_6d_int_go.numpy()
+            smpl_params_wearer['body_pose'] = out_6d_wear_bp.numpy()
+            smpl_params_wearer['global_orient'] = out_6d_wear_go.numpy()
+
+
+            '''
+            wear_bp = rotmat_to_rot6d(aa_to_rotmat(torch.tensor(smpl_params_wearer['body_pose']).reshape(-1, 3)).reshape(-1, 23, 3, 3)).reshape(-1, 1, 23*6)
+            wear_go = rotmat_to_rot6d(aa_to_rotmat(torch.tensor(smpl_params_wearer['global_orient']).reshape(-1, 3)).reshape(-1, 1, 3, 3)).reshape(-1, 1, 6)
+
+            interactee_bp = rotmat_to_rot6d(aa_to_rotmat(torch.tensor(smpl_params_interactee['body_pose']).reshape(-1, 3)).reshape(-1, 23, 3, 3)).reshape(-1, 1, 23*6)
+            interactee_go = rotmat_to_rot6d(aa_to_rotmat(torch.tensor(smpl_params_interactee['global_orient']).reshape(-1, 3)).reshape(-1, 1, 3, 3)).reshape(-1, 1, 6)
+            
+            smpl_params_interactee['body_pose'] = interactee_bp.numpy()
+            smpl_params_interactee['global_orient'] = interactee_go.numpy()
+            smpl_params_wearer['body_pose'] = wear_bp.numpy()
+            smpl_params_wearer['global_orient'] = wear_go.numpy()'''
+        
+        elif self.data_type == 'angle':
+            # Nedd to # apply the global rotation to the global orientation
+            global_orient_int = smpl_params_interactee['global_orient']
+            global_orient_wear = smpl_params_wearer['global_orient']
+
+
+            
+
+            #for i in range(global_orient_int.shape[0]):
+            #    global_orient_int[i] = rot_aa(global_orient_int[i].reshape(-1, 3), rot=0.).reshape(-1, 1, 3)
+            #    global_orient_wear[i] = rot_aa(global_orient_wear[i].reshape(-1, 3), rot=0.).reshape(-1, 1, 3)
+            
+
+            smpl_params_interactee['global_orient'] = global_orient_int
+            smpl_params_wearer['global_orient'] = global_orient_wear
+
+            if self.pose_estimation_task:
+                global_orient_int_pe_gt = smpl_params_interactee_pe_gt['global_orient']
+                smpl_params_interactee_pe_gt['global_orient'] = global_orient_int_pe_gt
+           
+
+
+        has_smpl_params = {'global_orient': True,
+                           'transl': True,
+                           'body_pose': True,
+                           'betas': True
+                           }
+        
+        smpl_params_is_axis_angle = {'global_orient': True,
+                                     'transl': False,
+                                     'body_pose': True,
+                                     'betas': False
+                                    }
+
+
+        do_like_egoego=False
+        normalize_altogether=False
+        if normalize_altogether:
+            mean = self.mean[0, :self.numdims]
+            std = self.std[0, :self.numdims]
+            full_pose_aa_interactee = np.concatenate([smpl_params_interactee['global_orient'], 
+                                                    smpl_params_interactee['body_pose']], axis=-1)
+            full_pose_aa_interactee = (full_pose_aa_interactee.reshape(self.motion_length, -1) - mean) / std
+            
+
+            full_pose_aa_wearer = np.concatenate([smpl_params_wearer['global_orient'],
+                                                    smpl_params_wearer['body_pose']], axis=-1)
+            full_pose_aa_wearer = (full_pose_aa_wearer.reshape(self.motion_length, -1) - mean) / std
+            
+            interactee = torch.tensor(full_pose_aa_interactee, dtype=torch.float32).unsqueeze(1)
+            wearer = torch.tensor(full_pose_aa_wearer, dtype=torch.float32).unsqueeze(1)
+
+            motion = torch.cat([wearer, interactee], dim=1)
+        
+        else:
+            
+            full_pose_aa_interactee = smpl_params_interactee['body_pose']
+            full_pose_aa_wearer = smpl_params_wearer['body_pose']
+
+            if self.pose_estimation_task:
+                full_pose_aa_interactee_pe_gt = smpl_params_interactee_pe_gt['body_pose']
+
+
+
+            mean = self.mean[0, self.go_dims:self.numdims] 
+            std = self.std[0, self.go_dims:self.numdims]
+
+            
+            if item_length!=self.motion_length:
+                length_to_pad = self.motion_length - item_length
+                full_pose_aa_interactee = np.concatenate([full_pose_aa_interactee, np.zeros((length_to_pad, 1, 69))], axis=0)
+                full_pose_aa_wearer = np.concatenate([full_pose_aa_wearer, np.zeros((length_to_pad, 1, 69))], axis=0)
+                if self.pose_estimation_task:
+                    full_pose_aa_interactee_pe_gt = np.concatenate([full_pose_aa_interactee_pe_gt, np.zeros((length_to_pad, 1, 69))], axis=0)
+
+            full_pose_aa_interactee = (full_pose_aa_interactee.reshape(self.motion_length, -1) - mean) / std
+            full_pose_aa_wearer = (full_pose_aa_wearer.reshape(self.motion_length, -1) - mean) / std
+            if self.pose_estimation_task:
+                full_pose_aa_interactee_pe_gt = (full_pose_aa_interactee_pe_gt.reshape(self.motion_length, -1) - mean) / std
+            
+            interactee = torch.tensor(full_pose_aa_interactee, dtype=torch.float32).unsqueeze(1)
+            wearer = torch.tensor(full_pose_aa_wearer, dtype=torch.float32).unsqueeze(1)
+
+            if self.pose_estimation_task:
+                interactee_pe_gt = torch.tensor(full_pose_aa_interactee_pe_gt, dtype=torch.float32).unsqueeze(1)
+
+            motion = torch.cat([wearer, interactee], dim=1)
+
+            #! NOT NORMALIZED
+            interactee_go = torch.tensor(smpl_params_interactee['global_orient'], dtype=torch.float32)
+            wearer_go = torch.tensor(smpl_params_wearer['global_orient'], dtype=torch.float32)
+
+            if self.pose_estimation_task:
+                interactee_go_pe_gt = torch.tensor(smpl_params_interactee_pe_gt['global_orient'], dtype=torch.float32)
+
+            if item_length!=self.motion_length:
+                interactee_go = torch.cat([interactee_go, torch.zeros((length_to_pad, 1, 3))], dim=0)
+                wearer_go = torch.cat([wearer_go, torch.zeros((length_to_pad, 1, 3))], dim=0)
+
+                if self.pose_estimation_task:
+                    interactee_go_pe_gt = torch.cat([interactee_go_pe_gt, torch.zeros((length_to_pad, 1, 3))], dim=0)
+
+            
+            mean = self.mean[0, :self.go_dims]
+            std = self.std[0, :self.go_dims]
+            interactee_go = (interactee_go - mean) / std
+            wearer_go = (wearer_go - mean) / std
+
+            if self.pose_estimation_task:
+                interactee_go_pe_gt = (interactee_go_pe_gt - mean) / std
+
+            
+            global_orient = torch.cat([wearer_go, interactee_go], dim=1)
+            
+            motion = torch.cat([global_orient, motion], dim=-1)
+            if self.pose_estimation_task:
+                motion_interacte_pe_gt = torch.cat([interactee_go_pe_gt, interactee_pe_gt], dim=-1)
+
+        utils = torch.cat([fx, cx, cy, center, scale], dim=1)
+        if item_length!=self.motion_length:
+            utils = torch.cat([utils, torch.zeros((length_to_pad, 6))], dim=0)
+
+                
+        #betas = torch.cat([torch.tensor(smpl_params_wearer['betas'], dtype=torch.float32).unsqueeze(0),
+        #                    torch.tensor(smpl_params_interactee['betas'], dtype=torch.float32).unsqueeze(0)], dim=0)
+
+        interactee_transl = torch.tensor(smpl_params_interactee['transl'], dtype=torch.float32)
+        wearer_transl = torch.tensor(smpl_params_wearer['transl'], dtype=torch.float32)
+
+        if self.pose_estimation_task:
+            interactee_transl_pe_gt = torch.tensor(smpl_params_interactee_pe_gt['transl'], dtype=torch.float32)
+
+        if item_length!=self.motion_length:
+            interactee_transl = torch.cat([interactee_transl, torch.zeros((length_to_pad, 1, 3))], dim=0)
+            wearer_transl = torch.cat([wearer_transl, torch.zeros((length_to_pad, 1, 3))], dim=0)
+            if self.pose_estimation_task:
+                interactee_transl_pe_gt = torch.cat([interactee_transl_pe_gt, torch.zeros((length_to_pad, 1, 3))], dim=0)
+
+
+        if self.predict_transl and self.data_type == 'angle':
+            interactee_transl = (interactee_transl - self.mean[0,-3:]) / self.std[0,-3:]
+            wearer_transl = (wearer_transl - self.mean[0,-3:]) / self.std[0,-3:]
+            if self.pose_estimation_task:
+                interactee_transl_pe_gt = (interactee_transl_pe_gt - self.mean[0, self.numdims:self.numdims+3]) / self.std[0, self.numdims:self.numdims+3]
+
+        transl = torch.cat([wearer_transl, interactee_transl], dim=1).permute(1, 0, 2)
+        if self.pose_estimation_task:
+            interactee_transl_pe_gt = interactee_transl_pe_gt.permute(1, 0, 2)
+
+        interactee_beta = torch.tensor(smpl_params_interactee['betas'], dtype=torch.float32)
+        wearer_beta = torch.tensor(smpl_params_wearer['betas'], dtype=torch.float32)
+        if self.pose_estimation_task:
+            interactee_beta_pe_gt = torch.tensor(smpl_params_interactee_pe_gt['betas'], dtype=torch.float32)
+
+        if item_length!=self.motion_length:
+            interactee_beta = torch.cat([interactee_beta, torch.zeros((length_to_pad, 1, 10))], dim=0)
+            wearer_beta = torch.cat([wearer_beta, torch.zeros((length_to_pad, 1, 10))], dim=0)
+            if self.pose_estimation_task:
+                interactee_beta_pe_gt = torch.cat([interactee_beta_pe_gt, torch.zeros((length_to_pad, 1, 10))], dim=0).permute(1, 0, 2)
+
+        beta = torch.cat([wearer_beta, interactee_beta], dim=1).permute(1, 0, 2)
+
+        length = torch.tensor([item_length], dtype=torch.int32)
+        
+        
+        # if 'image' in self.condition or self.pred_betas:
+        #     images = []
+        #     number_of_images = len(recording_utils['original_imgname'])
+        #     image_idx = np.random.randint(0, number_of_images)
+        #     img_path = os.path.join('./datasets/EgoBody/', recording_utils['original_imgname'][image_idx])
+        #     cvimg = cv2.imread(img_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
+        #     img_height, img_width, img_channels = cvimg.shape
+        #     width, height = 224, 224
+            
+        #     bbox_size = recording_utils['scale'][image_idx]*200
+        #     center_x = recording_utils['center'][image_idx][0] + bbox_size
+        #     center_y = recording_utils['center'][image_idx][1] + bbox_size
+
+        #     img_patch_cv, trans_crop = generate_image_patch(cvimg,
+        #                                     center_x, center_y,
+        #                                     bbox_size, bbox_size,
+        #                                     patch_width=width, patch_height=height,
+        #                                     do_flip=False, scale=1.0, rot=0.)
+        #     image = img_patch_cv.copy()
+
+            
+        #     image = image[:, :, ::-1]  # [224, 224, 3] BGR-->RGB
+
+        #     img_patch_cv = image.copy()
+        #     img_patch = convert_cvimg_to_tensor(image)
+
+        #     # apply RGB normalization
+        #     color_scale = [1.0, 1.0, 1.0]
+        #     mean_col, std_col = 255.*np.array([0.485, 0.456, 0.406]), 255. *np.array([0.229, 0.224, 0.225])
+        #     for n_c in range(img_channels):
+        #         img_patch[n_c, :, :] = np.clip(img_patch[n_c, :, :] * color_scale[n_c], 0, 255)
+        #         if mean is not None and std is not None:
+        #             img_patch[n_c, :, :] = (img_patch[n_c, :, :] - mean_col[n_c]) / std_col[n_c]
+        #     images = torch.tensor(img_patch, dtype=torch.float32)
+        #     '''
+        #     for i, img_path in enumerate(recording_utils['original_imgname']):
+        #         img_path = os.path.join('./datasets/EgoBody/', img_path)
+        #         cvimg = cv2.imread(img_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
+        #         img_height, img_width, img_channels = cvimg.shape
+        #         width, height = 224, 224
+                
+        #         bbox_size = recording_utils['scale'][i]*200
+        #         center_x = recording_utils['center'][i][0] + bbox_size
+        #         center_y = recording_utils['center'][i][1] + bbox_size
+
+        #         img_patch_cv, trans_crop = generate_image_patch(cvimg,
+        #                                         center_x, center_y,
+        #                                         bbox_size, bbox_size,
+        #                                         patch_width=width, patch_height=height,
+        #                                         do_flip=False, scale=1.0, rot=0.)
+        #         image = img_patch_cv.copy()
+
+                
+        #         image = image[:, :, ::-1]  # [224, 224, 3] BGR-->RGB
+
+        #         img_patch_cv = image.copy()
+        #         img_patch = convert_cvimg_to_tensor(image)
+
+        #         # apply RGB normalization
+        #         color_scale = [1.0, 1.0, 1.0]
+        #         mean_col, std_col = 255.*np.array([0.485, 0.456, 0.406]), 255. *np.array([0.229, 0.224, 0.225])
+        #         for n_c in range(img_channels):
+        #             img_patch[n_c, :, :] = np.clip(img_patch[n_c, :, :] * color_scale[n_c], 0, 255)
+        #             if mean is not None and std is not None:
+        #                 img_patch[n_c, :, :] = (img_patch[n_c, :, :] - mean_col[n_c]) / std_col[n_c]
+        #         images.append(img_patch)
+        #     images = np.stack(images, axis=0)
+        #     images = torch.tensor(images, dtype=torch.float32)
+
+        #     nuber_of_images = images.shape[0]
+        #     # Sample an image
+        #     image_idx = np.random.randint(0, nuber_of_images)
+        #     images = images[image_idx]'''
+
+
+        
+                
+
+        
+        if 'scene' in self.condition and 'image' not in self.condition:
+            #if self.pred_betas:
+            #    return motion, transl, beta, utils, scene_pcd_verts, images
+            #else:
+            #    return motion, transl, beta, utils, scene_pcd_verts
+            
+            if self.transl_egoego:
+                return motion, transl, beta, utils, scene_pcd_verts, pred_egoego_transl, pred_egoego_global_orient, length
+            else:
+                if self.pose_estimation_task:
+                    return motion, transl, beta, utils, scene_pcd_verts, length 
+                else:
+                    return motion, transl, beta, utils, scene_pcd_verts, length, list_imgname
+
+        # elif 'scene' in self.condition and 'image' in self.condition:
+            
+        #     return motion, transl, beta, utils, scene_pcd_verts, images, length
+        # elif 'scene' not in self.condition and 'image' in self.condition:
+        #     return motion, transl, beta, utils, images, length
         else:
             return motion, transl, beta, utils, length
 

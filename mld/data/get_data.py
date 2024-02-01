@@ -7,6 +7,7 @@ from .Kit import KitDataModule
 from .Humanact12 import Humanact12DataModule
 from .Uestc import UestcDataModule
 from .EgoBody import EgoBodyDataModule
+from .Gimo import GimoDataModule
 from .utils import *
 
 
@@ -165,6 +166,41 @@ def get_datasets(cfg, logger=None, phase="train"):
             
 
             dataset = EgoBodyDataModule(
+                datapath=eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
+                cfg=cfg,
+                batch_size=cfg.TRAIN.BATCH_SIZE,
+                num_workers=cfg.TRAIN.NUM_WORKERS,
+                debug=cfg.DEBUG,
+                #collate_fn=collate_fn,
+                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE
+                if not cfg.DEBUG else 100,
+                mean=mean,
+                std=std,
+                motion_dir=motion_dir,
+                condition=cfg.model.condition,
+                interactee_pred=cfg.TEST.INTERACTEE_PRED,
+                pred_global_orient=cfg.TEST.GLOBAL_ORIENT_PRED,
+                motion_length=cfg.MOTION_LENGTH,
+                data_type=cfg.DATA_TYPE,
+                pred_betas=cfg.TEST.BETAS_PRED,
+                transl_egoego=cfg.TEST.TRANSL_EGOEGO,
+                global_orient_egoego=cfg.TEST.GLOBAL_ORIENT_EGOEGO,
+                predict_transl=cfg.TRAIN.ABLATION.PREDICT_TRANSL,
+                droid_slam_cut=cfg.TEST.DROID_SLAM_CUT,
+                pose_estimation_task=cfg.TEST.POSE_ESTIMATION_TASK,
+                )
+            datasets.append(dataset)
+
+        elif dataset_name.lower() in ["gimo"]:
+            data_root = eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT")
+
+            # * Load mean and std
+            mean = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "processed/mean.npy")) # (1,N)
+            std = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "processed/std.npy")) # (1,N)
+
+            motion_dir = pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "processed")
+            
+            dataset = GimoDataModule(
                 datapath=eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
                 cfg=cfg,
                 batch_size=cfg.TRAIN.BATCH_SIZE,
