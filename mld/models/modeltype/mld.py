@@ -355,8 +355,8 @@ class MLD(BaseModel):
 
     def _diffusion_reverse(self, encoder_hidden_states, lengths=None):
         # init latents
-        bsz = encoder_hidden_states.shape[0]
-        if self.do_classifier_free_guidance:
+        bsz = encoder_hidden_states.shape[0] # * if classifier free then bs*2 and then it gets divided by 2
+        if self.do_classifier_free_guidance: # TODO: during test
             bsz = bsz // 2
         if self.vae_type == "no":
             assert lengths is not None, "no vae (diffusion only) need lengths for diffusion"
@@ -390,7 +390,7 @@ class MLD(BaseModel):
             # expand the latents if we are doing classifier free guidance
             latent_model_input = (torch.cat(
                 [latents] *
-                2) if self.do_classifier_free_guidance else latents)
+                2) if self.do_classifier_free_guidance else latents) # * if classifier free then bs*2 or else it is bs
             lengths_reverse = (lengths * 2 if self.do_classifier_free_guidance
                                else lengths)
             # latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
@@ -746,7 +746,7 @@ class MLD(BaseModel):
             
 
         elif 'scene' in self.condition and 'image' not in self.condition:
-            feats_ref, transl, beta, utils_, scene, length = batch
+            feats_ref, transl, beta, utils_, scene, length, img_path = batch
             cond_image_emb = None
             scene = scene.float()
             
@@ -823,6 +823,11 @@ class MLD(BaseModel):
             cond_emb = z_cond
         else:
             cond_emb = None
+
+        # * Classifier free guidance
+        if self.do_classifier_free_guidance:
+            mask = torch.rand_like(cond_emb) < self.guidance_uncodp
+            cond_emb = torch.where(mask, 0.0, cond_emb)
 
         # diffusion process return with noise and noise_pred
         n_set = self._diffusion_process(z, cond_emb, lengths)
@@ -1006,9 +1011,7 @@ class MLD(BaseModel):
                     
                 else:
                     text_emb, _ = self.vae.encode(feats_ref[:,:,1], cond_image_emb, lengths)
-            if self.do_classifier_free_guidance:
-                print('Classifier free guidance TODO')
-                quit()
+
             
 
             if 'scene' in self.condition and 'image' in self.condition:
@@ -1030,6 +1033,13 @@ class MLD(BaseModel):
                 cond_emb = text_emb
             else:
                 cond_emb = None
+            
+            
+            if self.do_classifier_free_guidance:
+                # * create a tensor with all 0s which is (1, cond_emb.shape[1], cond_emb.shape[2])
+                empty_tensor = torch.zeros((1, cond_emb.shape[1], cond_emb.shape[2])).to(cond_emb.device)
+                # *concatenate the empty tensor with the cond_emb
+                cond_emb = torch.cat([empty_tensor, cond_emb], dim=1)
             
             z = self._diffusion_reverse(cond_emb.permute(1,0,2), lengths)
           
@@ -1325,14 +1335,14 @@ class MLD(BaseModel):
 
         if self.stage in ['diffusion', 'vae_diffusion']:
             # diffusion reverse
-            if self.do_classifier_free_guidance:
-                uncond_tokens = [""] * len(texts)
+            if self.do_classifier_free_guidance: # TODO: During test 
+                uncond_tokens = [""] * len(texts) # * 128 (it is a list)
                 if self.condition == 'text':
-                    uncond_tokens.extend(texts)
+                    uncond_tokens.extend(texts) # * 128*2
                 elif self.condition == 'text_uncond':
                     uncond_tokens.extend(uncond_tokens)
-                texts = uncond_tokens
-            text_emb = self.text_encoder(texts)
+                texts = uncond_tokens # * 128*2
+            text_emb = self.text_encoder(texts) # * (128*2, 1, 768) it also embeds the uncond_tokens
             z = self._diffusion_reverse(text_emb, lengths)
         elif self.stage in ['vae']:
             if self.vae_type in ["mld", "vposert", "actor"]:
