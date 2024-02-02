@@ -539,18 +539,18 @@ class ComputeMetrics(Metric):
                     
                     #quit()
 
-                if  np.mean(accl_error)>0:
-                    #self.Person_dist.append(person_dist)
-                    #self.orient_social.append(angles)
-                    self.MPJPE += mpjpe_error
-                    self.count_seq +=  1
-                    # self.HEAD_ORIENTATION_ERROR += head_orientation_error #! remove for train
-                    # self.count_seq_head_orientation +=  1 #! remove for train
-                    self.ROOT_ERROR += root_err
-                    self.count_seq_root +=  1
-                    # self.ACCL += (np.mean(accl_error)*1000) #! remove for train
-                    # self.count_seq_accl +=  1 #! remove for train
-        
+            if  np.mean(accl_error)>0:
+                #self.Person_dist.append(person_dist)
+                #self.orient_social.append(angles)
+                self.MPJPE += mpjpe_error
+                self.count_seq +=  1
+                # self.HEAD_ORIENTATION_ERROR += head_orientation_error #! remove for train
+                # self.count_seq_head_orientation +=  1 #! remove for train
+                self.ROOT_ERROR += root_err
+                self.count_seq_root +=  1
+                # self.ACCL += (np.mean(accl_error)*1000) #! remove for train
+                # self.count_seq_accl +=  1 #! remove for train
+    
             #if root_err<300:
             #    self.ROOT_ERROR += root_err
             #    self.count_seq_root +=  1
