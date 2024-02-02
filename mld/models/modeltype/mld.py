@@ -1038,8 +1038,7 @@ class MLD(BaseModel):
             if self.do_classifier_free_guidance:
                 # * create a tensor with all 0s which is (1, cond_emb.shape[1], cond_emb.shape[2])
                 empty_tensor = torch.zeros((cond_emb.shape[0], cond_emb.shape[1], cond_emb.shape[2])).to(cond_emb.device)
-                
-		# *concatenate the empty tensor with the cond_emb
+                # *concatenate the empty tensor with the cond_emb
                 cond_emb = torch.cat([empty_tensor, cond_emb], dim=1)
             
             z = self._diffusion_reverse(cond_emb.permute(1,0,2), lengths)

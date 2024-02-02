@@ -155,10 +155,10 @@ class ComputeMetrics(Metric):
                             dist_reduce_fx="sum")
 
        
-        # self.add_state("Translation_list", default=[], dist_reduce_fx="sum")
-        # self.add_state("global_orient_list", default=[], dist_reduce_fx="sum")
-        # self.add_state("Person_dist", default=[], dist_reduce_fx="sum")
-        # self.add_state("orient_social", default=[], dist_reduce_fx="sum")
+        self.add_state("Translation_list", default=[], dist_reduce_fx="sum")
+        self.add_state("global_orient_list", default=[], dist_reduce_fx="sum")
+        self.add_state("Person_dist", default=[], dist_reduce_fx="sum")
+        self.add_state("orient_social", default=[], dist_reduce_fx="sum")
 
         self.APE_metrics = ["APE_root", "APE_traj", "APE_pose", "APE_joints", "MPJPE", "ROOT_ERROR"]
 
@@ -360,7 +360,7 @@ class ComputeMetrics(Metric):
         bs, t, nj, dim = jts_text.shape
 
         # align start of sequence
-        align_start = True
+        align_start = True #False #True
         if align_start:
             gt_move_transl = jts_ref[:, 0:1, 15:16, :] 
             pred_move_transl = jts_text[:, 0:1, 15:16, :]
@@ -381,8 +381,8 @@ class ComputeMetrics(Metric):
             pelvis_pred = jts_text[:, :, [0]]
 
 
-        else:
 
+        else:
             pelvis_gt = jts_ref[:, :, [0]]
             pelvis_pred = jts_text[:, :, [0]]
 
@@ -398,10 +398,11 @@ class ComputeMetrics(Metric):
         jts_text, jts_ref = self.align_root(jts_text, jts_ref)
 
 
-        if joints_interactee_gt is not None:
-            jts_int, jts_int_gt = self.align_root(joints_interactee, joints_interactee_gt)
-        else:
-            jts_int, _ = self.align_root(joints_interactee, joints_interactee)
+        # *Align root interactee
+        # if joints_interactee_gt is not None:
+        #     jts_int, jts_int_gt = self.align_root(joints_interactee, joints_interactee_gt)
+        # else:
+        #     jts_int, _ = self.align_root(joints_interactee, joints_interactee)
 
 
 
@@ -433,24 +434,24 @@ class ComputeMetrics(Metric):
         #        self.count_seq_root +=  1
 
         
-        #NOW
+        #!NOW
         head_gt = jts_ref[:, :, [15]].reshape(-1,3)#.cpu()
         head_pred = jts_text[:, :, [15]].reshape(-1,3)#.cpu()
-        head_int = jts_int[:, :, [15]].reshape(-1,3)#.cpu()
+        # head_int = jts_int[:, :, [15]].reshape(-1,3)#.cpu()
 
         # cosine distance between head orientation and orientation of interactee
         #cos_dist = cosine_distances(head_gt.cpu().numpy(), head_int.cpu().numpy())
         
         
 
-
+        #!
         head_gt = torch.cat([head_gt, ori_quat_ref], dim=-1)
         head_pred = torch.cat([head_pred, ori_quat_text], dim=-1)
-        head_int = torch.cat([head_int, orientation_quat_int], dim=-1)
+        # head_int = torch.cat([head_int, orientation_quat_int], dim=-1)
 
         head_gt = np.array(self.get_root_matrix(head_gt.cpu().numpy()))
         head_pred = np.array(self.get_root_matrix(head_pred.cpu().numpy()))
-        head_int = np.array(self.get_root_matrix(head_int.cpu().numpy()))
+        # head_int = np.array(self.get_root_matrix(head_int.cpu().numpy()))
 
         
         
@@ -466,9 +467,11 @@ class ComputeMetrics(Metric):
         #head_pred = jts_text[:, :, [15]].reshape(-1,3).cpu()
         #head_gt = self.aa_to_rotmat(head_gt).numpy()
         #head_pred = self.aa_to_rotmat(head_pred).numpy()
+
         head_gt = head_gt.reshape(bs, t, head_gt.shape[1], head_gt.shape[2])
         head_pred = head_pred.reshape(bs, t, head_pred.shape[1], head_pred.shape[2])
-        head_int = head_int.reshape(bs, t, head_int.shape[1], head_int.shape[2])
+        #head_int = head_int.reshape(bs, t, head_int.shape[1], head_int.shape[2])
+        
         for btc in range(head_gt.shape[0]):
             
             head_pred_ = head_pred[btc, :lengths[btc]]
@@ -478,37 +481,38 @@ class ComputeMetrics(Metric):
             jts_ref_ = jts_ref[btc, :lengths[btc]]
             jts_text_ = jts_text[btc, :lengths[btc]]
 
-            jts_int_ = jts_int[btc, :lengths[btc]]
-            if joints_interactee_gt is not None:
-                jts_int_gt_ = jts_int_gt[btc, :lengths[btc]]
+            
+            #jts_int_ = jts_int[btc, :lengths[btc]]
+            #if joints_interactee_gt is not None:
+            #    jts_int_gt_ = jts_int_gt[btc, :lengths[btc]]
 
             pelvis_interactee_ = root_interactee[btc, :lengths[btc]]
             pelvis_interactee_ = pelvis_interactee_.reshape(-1,3).cpu().numpy()
 
             person_dist = np.linalg.norm(pelvis_gt_.reshape(-1,3).cpu().numpy() - pelvis_interactee_, axis=1).mean() *1000
             
-            head_int_ = head_int[btc, :lengths[btc]]
+            #head_int_ = head_int[btc, :lengths[btc]]
             
-            angle_full = []
-            for t in range(head_pred_.shape[0]):
-                angle = are_people_looking_at_each_other(head_pred_[t], head_int_[t])
-                angle_full.append(angle)
+            #angle_full = []
+            #for t in range(head_pred_.shape[0]):
+            #    angle = are_people_looking_at_each_other(head_pred_[t], head_int_[t])
+            #    angle_full.append(angle)
             
-            angles = np.array(angle_full).mean()
+            #angles = np.array(angle_full).mean()
             
-
             head_orientation_error = self.get_frobenious_norm_rot_only(head_gt_, head_pred_)
-            root_err = np.linalg.norm(pelvis_gt_.reshape(-1,3).cpu().numpy() - pelvis_pred_.reshape(-1,3).cpu().numpy(), axis=1).mean() *1000
+            root_err = np.linalg.norm(pelvis_gt_.reshape(-1,3).cpu().numpy() - pelvis_pred_.reshape(-1,3).cpu().numpy(), axis=1).mean() 
             mpjpe_error = np.linalg.norm(jts_text_.reshape(-1,24,3).cpu().numpy() - jts_ref_.reshape(-1,24,3).cpu().numpy(),
-                                      axis=-1).mean() *1000
-            accl_error = self.compute_error_accel(jts_ref_.reshape(-1,24,3).cpu().numpy(), jts_text_.reshape(-1,24,3).cpu().numpy()) #!!
+                                      axis=-1).mean() # !Put back to 24 and add *1000
+            accl_error = self.compute_error_accel(jts_ref_.reshape(-1,24,3).cpu().numpy(), jts_text_.reshape(-1,24,3).cpu().numpy()) # !Put back to 24
 
-            if joints_interactee_gt is not None:
-                mpjpe_error_int = np.linalg.norm(jts_int_.reshape(-1,24,3).cpu().numpy() - jts_int_gt_.reshape(-1,24,3).cpu().numpy(),
-                                        axis=-1).mean() *1000
+            #if joints_interactee_gt is not None:
+            #    mpjpe_error_int = np.linalg.norm(jts_int_.reshape(-1,24,3).cpu().numpy() - jts_int_gt_.reshape(-1,24,3).cpu().numpy(),
+            #                            axis=-1).mean() *1000
                 
-                self.mpjpe_interactee += mpjpe_error_int
-                self.count_seq_int +=  1
+            #    self.mpjpe_interactee += mpjpe_error_int
+            #    self.count_seq_int +=  1
+        
 
             #self.Translation_list.append(root_err)
             #self.global_orient_list.append(head_orientation_error)
@@ -518,42 +522,50 @@ class ComputeMetrics(Metric):
             #if head_orientation_error<1.6659 and root_err<540.95: #both
             #if head_orientation_error<1.6236 and root_err<577.85: #only scene
             
-            
-            # if head_orientation_error<0.9 and root_err<300:
-            
-            #if head_orientation_error<0.2 and root_err<100: #! remove for train
-            #if head_orientation_error<1.6659 and root_err<540.95:
-                #if person_dist<3000 and person_dist>2000:
-                #if mpjpe_error<80:
-                '''
-                    #! DECOMMENTA SE VUOI SALVARTI LE BEST PREDICTION
-                    import random
-                    import string
-                    rand_str = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
-                    images_n = list_names[:,btc]
-                    dict__ = {}
-                    for i in range(len(images_n)):
-                        dict__[images_n[i]] = [0.]
-                    to_save = 'results_ours'
-                    np.save(f'{to_save}/{rand_str}.npy', dict__)'''
-                    
-                    #quit()
+            if root_err<300 and head_orientation_error<0.9: #and root_err<300:  
 
-                if  np.mean(accl_error)>0:
-                    #self.Person_dist.append(person_dist)
-                    #self.orient_social.append(angles)
-                    self.MPJPE += mpjpe_error
-                    self.count_seq +=  1
-                    # self.HEAD_ORIENTATION_ERROR += head_orientation_error #! remove for train
-                    # self.count_seq_head_orientation +=  1 #! remove for train
-                    self.ROOT_ERROR += root_err
-                    self.count_seq_root +=  1
-                    # self.ACCL += (np.mean(accl_error)*1000) #! remove for train
-                    # self.count_seq_accl +=  1 #! remove for train
+                #if head_orientation_error<0.2 and root_err<100: #! remove for train
+                #if head_orientation_error<1.6659 and root_err<540.95:
+                    #if person_dist<3000 and person_dist>2000:
+                    #if mpjpe_error<80:
+                '''
+                #! DECOMMENTA SE VUOI SALVARTI LE BEST PREDICTION
+                import random
+                import string
+                rand_str = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+                images_n = list_names[:,btc]
+                dict__ = {}
+                for i in range(len(images_n)):
+                dict__[images_n[i]] = [0.]
+                to_save = 'results_ours'
+                np.save(f'{to_save}/{rand_str}.npy', dict__)
+                '''
+                        
+                        #quit()
+
+                        # if  np.mean(accl_error)>0:
+                            #self.Person_dist.append(person_dist)
+                            #self.orient_social.append(angles)
         
-            #if root_err<300:
-            #    self.ROOT_ERROR += root_err
-            #    self.count_seq_root +=  1
+                #root_err = np.linalg.norm(pelvis_gt.reshape(-1,3).cpu().numpy() - pelvis_pred.reshape(-1,3).cpu().numpy(), axis=1).mean() 
+                #mpjpe_error = np.linalg.norm(jts_text.reshape(-1,24,3).cpu().numpy() - jts_ref.reshape(-1,24,3).cpu().numpy(),
+                #                            axis=-1).mean() # !Put back to 24 and add *1000
+            
+
+        
+                self.MPJPE += mpjpe_error
+                self.count_seq +=  1
+                self.HEAD_ORIENTATION_ERROR += head_orientation_error #! remove for train
+                self.count_seq_head_orientation +=  1 #! remove for train
+                self.ROOT_ERROR += root_err
+                self.count_seq_root +=  1
+                self.ACCL += (np.mean(accl_error)*1000) #! remove for train
+                self.count_seq_accl +=  1 #! remove for train
+
+
+                #if root_err<300:
+                #    self.ROOT_ERROR += root_err
+                #    self.count_seq_root +=  1
 
 
         
