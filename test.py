@@ -32,8 +32,10 @@ def print_table(title, metrics):
 def get_metric_statistics(values, replication_times):
     mean = np.mean(values, axis=0)
     std = np.std(values, axis=0)
+    min = np.min(values, axis=0)
+    max = np.max(values, axis=0)
     conf_interval = 1.96 * std / np.sqrt(replication_times)
-    return mean, conf_interval
+    return mean, conf_interval, min, max
 
 def main():
     # parse options
@@ -127,7 +129,6 @@ def main():
             mm_metrics = trainer.test(model, datamodule=datasets)[0]
             metrics.update(mm_metrics)
             datasets.mm_mode(False)
-        breakpoint()
         for key, item in metrics.items():
             if key not in all_metrics:
                 all_metrics[key] = [item]
@@ -137,10 +138,12 @@ def main():
     # metrics = trainer.validate(model, datamodule=datasets[0])
     all_metrics_new = {}
     for key, item in all_metrics.items():
-        mean, conf_interval = get_metric_statistics(np.array(item),
+        mean, conf_interval, min, max = get_metric_statistics(np.array(item),
                                                     replication_times)
         all_metrics_new[key + "/mean"] = mean
         all_metrics_new[key + "/conf_interval"] = conf_interval
+        all_metrics_new[key + "/min"] = min
+        all_metrics_new[key + "/max"] = max
     print_table(f"Mean Metrics", all_metrics_new)
     all_metrics_new.update(all_metrics)
     # save metrics to file
