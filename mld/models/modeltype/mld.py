@@ -1491,16 +1491,17 @@ class MLD(BaseModel):
                             "APE and AVE metrics only support humanml3d and kit datasets now"
                         )
 
-                    getattr(self, metric).update(rs_set["joints_rst"],
-                                                 rs_set["joints_ref"],
-                                                 rs_set["orientation_quat_rst"],
-                                                    rs_set["orientation_quat_ref"],
-                                                    rs_set['root_interactee'],
-                                                    rs_set['joints_interactee'],
-                                                    rs_set['orientation_quat_int'],
-                                                    rs_set['joints_interactee_gt'],
-                                                    rs_set['lengths'],
-                                                    rs_set['list_names'],)
+                    getattr(self, metric).update(split,
+                                                rs_set["joints_rst"],
+                                                rs_set["joints_ref"],
+                                                rs_set["orientation_quat_rst"],
+                                                rs_set["orientation_quat_ref"],
+                                                rs_set['root_interactee'],
+                                                rs_set['joints_interactee'],
+                                                rs_set['orientation_quat_int'],
+                                                rs_set['joints_interactee_gt'],
+                                                rs_set['lengths'],
+                                                rs_set['list_names'],)
                                                 
                 elif metric == "TM2TMetrics":
                     getattr(self, metric).update(

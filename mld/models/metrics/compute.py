@@ -10,6 +10,7 @@ from mld.transforms.joints2jfeats import Rifke
 from mld.utils.geometry import matrix_of_angles
 import numpy as np
 import math
+from mld.config import parse_args
 from sklearn.metrics.pairwise import cosine_distances
 
 from .utils import l2_norm, variance
@@ -202,6 +203,8 @@ class ComputeMetrics(Metric):
         APE_metrics["mpjpe_interactee"] = self.mpjpe_interactee / self.count_seq_int #self.n_batch # count #! remove for train
 
 
+        # ! Uncomment for ablation studies on social interaction
+        # TODO: make it optional in config
         #np.save('translation_list.npy', np.array(self.Translation_list))
         #np.save('global_orient_list.npy', np.array(self.global_orient_list))
         #np.save('person_dist.npy', np.array(self.Person_dist))
@@ -343,12 +346,11 @@ class ComputeMetrics(Metric):
         return error / len(x)
     
 
-    def update(self, jts_text: Tensor, jts_ref: Tensor, ori_quat_text: Tensor, 
+    def update(self, split, jts_text: Tensor, jts_ref: Tensor, ori_quat_text: Tensor, 
                ori_quat_ref: Tensor, root_interactee: Tensor, joints_interactee: Tensor, orientation_quat_int: Tensor,
                joints_interactee_gt: Tensor,
                lengths: List[int] = None, 
                list_names: List[str] = None):
-        
         
         if lengths is None:
             lengths = [jts_text.shape[1]] * jts_text.shape[0]
@@ -394,7 +396,7 @@ class ComputeMetrics(Metric):
         #self.ACCL += 1.
         #self.count_seq_accl +=  1
         
-        # Align root (COMMENT=MPJPE, UNCOMMENT=PA-MPJPE)
+        # !Align root (COMMENT=MPJPE, UNCOMMENT=PA-MPJPE)
         jts_text, jts_ref = self.align_root(jts_text, jts_ref)
 
 
@@ -420,30 +422,14 @@ class ComputeMetrics(Metric):
         #                              axis=-1).mean() *1000
         #self.count_seq +=  1
     
-        # MY
-        #root_error = torch.sqrt(((pelvis_gt - pelvis_pred) ** 2).sum(dim=-1)).mean(dim=-1)
-        #self.ROOT_ERROR += root_error.sum(-1).sum(-1)
-        #self.count_seq_root +=  (root_error.shape[0] * root_error.shape[1])
-        
-        # THEIR: SPOSTATO SOTTO
-        #for btc in range(pelvis_gt.shape[0]):
-        #    root_err = np.linalg.norm(pelvis_gt[btc].reshape(-1,3).cpu().numpy() - pelvis_pred[btc].reshape(-1,3).cpu().numpy(), axis=1).mean() *1000
-        #    if root_err<300:
-        #        self.ROOT_ERROR += root_err
-        #        self.count_seq_root +=  1
-
-        
-        #NOW
         head_gt = jts_ref[:, :, [15]].reshape(-1,3)#.cpu()
         head_pred = jts_text[:, :, [15]].reshape(-1,3)#.cpu()
         head_int = jts_int[:, :, [15]].reshape(-1,3)#.cpu()
 
         # cosine distance between head orientation and orientation of interactee
         #cos_dist = cosine_distances(head_gt.cpu().numpy(), head_int.cpu().numpy())
+        #head_int = np.array(self.get_root_matrix(orient_interactee.cpu().numpy()))
         
-        
-
-
         head_gt = torch.cat([head_gt, ori_quat_ref], dim=-1)
         head_pred = torch.cat([head_pred, ori_quat_text], dim=-1)
         head_int = torch.cat([head_int, orientation_quat_int], dim=-1)
@@ -452,20 +438,7 @@ class ComputeMetrics(Metric):
         head_pred = np.array(self.get_root_matrix(head_pred.cpu().numpy()))
         head_int = np.array(self.get_root_matrix(head_int.cpu().numpy()))
 
-        
-        
-        
-        
 
-
-        #head_int = np.array(self.get_root_matrix(orient_interactee.cpu().numpy()))
-
-
-        #BEFORE
-        #head_gt = jts_ref[:, :, [15]].reshape(-1,3).cpu()
-        #head_pred = jts_text[:, :, [15]].reshape(-1,3).cpu()
-        #head_gt = self.aa_to_rotmat(head_gt).numpy()
-        #head_pred = self.aa_to_rotmat(head_pred).numpy()
         head_gt = head_gt.reshape(bs, t, head_gt.shape[1], head_gt.shape[2])
         head_pred = head_pred.reshape(bs, t, head_pred.shape[1], head_pred.shape[2])
         head_int = head_int.reshape(bs, t, head_int.shape[1], head_int.shape[2])
@@ -485,18 +458,19 @@ class ComputeMetrics(Metric):
             pelvis_interactee_ = root_interactee[btc, :lengths[btc]]
             pelvis_interactee_ = pelvis_interactee_.reshape(-1,3).cpu().numpy()
 
+            # !Ablation studies on social interaction
             person_dist = np.linalg.norm(pelvis_gt_.reshape(-1,3).cpu().numpy() - pelvis_interactee_, axis=1).mean() *1000
             
             head_int_ = head_int[btc, :lengths[btc]]
             
+            # !Ablation studies on social interaction
             angle_full = []
             for t in range(head_pred_.shape[0]):
                 angle = are_people_looking_at_each_other(head_pred_[t], head_int_[t])
                 angle_full.append(angle)
-            
             angles = np.array(angle_full).mean()
             
-
+            # !Ablation studies on social interaction
             head_orientation_error = self.get_frobenious_norm_rot_only(head_gt_, head_pred_)
             root_err = np.linalg.norm(pelvis_gt_.reshape(-1,3).cpu().numpy() - pelvis_pred_.reshape(-1,3).cpu().numpy(), axis=1).mean() *1000
             mpjpe_error = np.linalg.norm(jts_text_.reshape(-1,24,3).cpu().numpy() - jts_ref_.reshape(-1,24,3).cpu().numpy(),
@@ -510,85 +484,142 @@ class ComputeMetrics(Metric):
                 self.mpjpe_interactee += mpjpe_error_int
                 self.count_seq_int +=  1
 
+
+            # !Ablation studies on social interaction
             #self.Translation_list.append(root_err)
             #self.global_orient_list.append(head_orientation_error)
-            #if head_orientation_error<0.9: #or root_err<300:
             
-            #if head_orientation_error<1.68 and root_err<415:
-            #if head_orientation_error<1.6659 and root_err<540.95: #both
-            #if head_orientation_error<1.6236 and root_err<577.85: #only scene
+
+            if split == 'test':
+                
+                # * Best of 5 predictions
+                if head_orientation_error<0.9 and root_err<300:                        
+                        #! DECOMMENTA SE VUOI SALVARTI LE BEST PREDICTION
+                        # import random
+                        # import string
+                        # rand_str = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+                        # images_n = list_names[:,btc]
+                        # dict__ = {}
+                        # for i in range(len(images_n)):
+                        #     dict__[images_n[i]] = [0.]
+                        # to_save = 'results_ours'
+                        # np.save(f'{to_save}/{rand_str}.npy', dict__)
+                        
+
+                    if  np.mean(accl_error)>0:
+                        #self.Person_dist.append(person_dist)
+                        #self.orient_social.append(angles)
+                        self.MPJPE += mpjpe_error
+                        self.count_seq +=  1
+                        self.HEAD_ORIENTATION_ERROR += head_orientation_error #! remove for train
+                        self.count_seq_head_orientation +=  1 #! remove for train
+                        self.ROOT_ERROR += root_err
+                        self.count_seq_root +=  1
+                        self.ACCL += (np.mean(accl_error)*1000) #! remove for train
+                        self.count_seq_accl +=  1 #! remove for train
             
+                # for i in range(len(lengths)):
+                    #self.APE_root += l2_norm(root_text[i], root_ref[i], dim=1).sum()
+                    #self.APE_pose += l2_norm(poses_text[i], poses_ref[i], dim=2).sum(0)
+                    #self.APE_traj += l2_norm(traj_text[i], traj_ref[i], dim=1).sum()
+                    #self.APE_joints += l2_norm(jts_text[i], jts_ref[i], dim=2).sum(0)
+
+                    # MPJPE
+                    #self.MPJPE += l2_norm(jts_text[i], jts_ref[i], dim=2).sum()
+
+                    #jts_ref = jts_ref.reshape(-1, 3)
+                    #jts_text = jts_text.reshape(-1, 3)
+                    #self.MPJPE += torch.mean(torch.norm(jts_ref-jts_text,2,1))
+
+                    # '''
+                    # root_sigma_text = variance(root_text[i], lengths[i], dim=0)
+                    # root_sigma_ref = variance(root_ref[i], lengths[i], dim=0)
+                    # self.AVE_root += l2_norm(root_sigma_text, root_sigma_ref, dim=0)
+
+                    # traj_sigma_text = variance(traj_text[i], lengths[i], dim=0)
+                    # traj_sigma_ref = variance(traj_ref[i], lengths[i], dim=0)
+                    # self.AVE_traj += l2_norm(traj_sigma_text, traj_sigma_ref, dim=0)
+
+                    # poses_sigma_text = variance(poses_text[i], lengths[i], dim=0)
+                    # poses_sigma_ref = variance(poses_ref[i], lengths[i], dim=0)
+                    # self.AVE_pose += l2_norm(poses_sigma_text, poses_sigma_ref, dim=1)
+
+                    # jts_sigma_text = variance(jts_text[i], lengths[i], dim=0)
+                    # jts_sigma_ref = variance(jts_ref[i], lengths[i], dim=0)
+                    # self.AVE_joints += l2_norm(jts_sigma_text, jts_sigma_ref, dim=1)
+                    # '''
             
-            # if head_orientation_error<0.9 and root_err<300:
-            
-            #if head_orientation_error<0.2 and root_err<100: #! remove for train
-            #if head_orientation_error<1.6659 and root_err<540.95:
-                #if person_dist<3000 and person_dist>2000:
-                #if mpjpe_error<80:
-                '''
-                    #! DECOMMENTA SE VUOI SALVARTI LE BEST PREDICTION
-                    import random
-                    import string
-                    rand_str = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
-                    images_n = list_names[:,btc]
-                    dict__ = {}
-                    for i in range(len(images_n)):
-                        dict__[images_n[i]] = [0.]
-                    to_save = 'results_ours'
-                    np.save(f'{to_save}/{rand_str}.npy', dict__)'''
+            else:
+                # if head_orientation_error<0.9 and root_err<300:
+                
+                #if head_orientation_error<0.2 and root_err<100: #! remove for train
+                #if head_orientation_error<1.6659 and root_err<540.95:
+                    #if person_dist<3000 and person_dist>2000:
+                    #if mpjpe_error<80:
                     
-                    #quit()
-
-            if  np.mean(accl_error)>0:
-                #self.Person_dist.append(person_dist)
-                #self.orient_social.append(angles)
-                self.MPJPE += mpjpe_error
-                self.count_seq +=  1
-                # self.HEAD_ORIENTATION_ERROR += head_orientation_error #! remove for train
-                # self.count_seq_head_orientation +=  1 #! remove for train
-                self.ROOT_ERROR += root_err
-                self.count_seq_root +=  1
-                # self.ACCL += (np.mean(accl_error)*1000) #! remove for train
-                # self.count_seq_accl +=  1 #! remove for train
-    
-            #if root_err<300:
-            #    self.ROOT_ERROR += root_err
-            #    self.count_seq_root +=  1
-
-
+                        #! DECOMMENTA SE VUOI SALVARTI LE BEST PREDICTION
+                        # import random
+                        # import string
+                        # rand_str = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+                        # images_n = list_names[:,btc]
+                        # dict__ = {}
+                        # for i in range(len(images_n)):
+                        #     dict__[images_n[i]] = [0.]
+                        # to_save = 'results_ours'
+                        # np.save(f'{to_save}/{rand_str}.npy', dict__)
+                        
+                        
+                if  np.mean(accl_error)>0:
+                    #self.Person_dist.append(person_dist)
+                    #self.orient_social.append(angles)
+                    self.MPJPE += mpjpe_error
+                    self.count_seq +=  1
+                    # self.HEAD_ORIENTATION_ERROR += head_orientation_error #! remove for train
+                    # self.count_seq_head_orientation +=  1 #! remove for train
+                    self.ROOT_ERROR += root_err
+                    self.count_seq_root +=  1
+                    # self.ACCL += (np.mean(accl_error)*1000) #! remove for train
+                    # self.count_seq_accl +=  1 #! remove for train
         
+                #if root_err<300:
+                #    self.ROOT_ERROR += root_err
+                #    self.count_seq_root +=  1
 
 
-        # for i in range(len(lengths)):
-            #self.APE_root += l2_norm(root_text[i], root_ref[i], dim=1).sum()
-            #self.APE_pose += l2_norm(poses_text[i], poses_ref[i], dim=2).sum(0)
-            #self.APE_traj += l2_norm(traj_text[i], traj_ref[i], dim=1).sum()
-            #self.APE_joints += l2_norm(jts_text[i], jts_ref[i], dim=2).sum(0)
+            
 
-            # MPJPE
-            #self.MPJPE += l2_norm(jts_text[i], jts_ref[i], dim=2).sum()
 
-            #jts_ref = jts_ref.reshape(-1, 3)
-            #jts_text = jts_text.reshape(-1, 3)
-            #self.MPJPE += torch.mean(torch.norm(jts_ref-jts_text,2,1))
+            # for i in range(len(lengths)):
+                #self.APE_root += l2_norm(root_text[i], root_ref[i], dim=1).sum()
+                #self.APE_pose += l2_norm(poses_text[i], poses_ref[i], dim=2).sum(0)
+                #self.APE_traj += l2_norm(traj_text[i], traj_ref[i], dim=1).sum()
+                #self.APE_joints += l2_norm(jts_text[i], jts_ref[i], dim=2).sum(0)
 
-        '''
-            root_sigma_text = variance(root_text[i], lengths[i], dim=0)
-            root_sigma_ref = variance(root_ref[i], lengths[i], dim=0)
-            self.AVE_root += l2_norm(root_sigma_text, root_sigma_ref, dim=0)
+                # MPJPE
+                #self.MPJPE += l2_norm(jts_text[i], jts_ref[i], dim=2).sum()
 
-            traj_sigma_text = variance(traj_text[i], lengths[i], dim=0)
-            traj_sigma_ref = variance(traj_ref[i], lengths[i], dim=0)
-            self.AVE_traj += l2_norm(traj_sigma_text, traj_sigma_ref, dim=0)
+                #jts_ref = jts_ref.reshape(-1, 3)
+                #jts_text = jts_text.reshape(-1, 3)
+                #self.MPJPE += torch.mean(torch.norm(jts_ref-jts_text,2,1))
 
-            poses_sigma_text = variance(poses_text[i], lengths[i], dim=0)
-            poses_sigma_ref = variance(poses_ref[i], lengths[i], dim=0)
-            self.AVE_pose += l2_norm(poses_sigma_text, poses_sigma_ref, dim=1)
+                # '''
+                # root_sigma_text = variance(root_text[i], lengths[i], dim=0)
+                # root_sigma_ref = variance(root_ref[i], lengths[i], dim=0)
+                # self.AVE_root += l2_norm(root_sigma_text, root_sigma_ref, dim=0)
 
-            jts_sigma_text = variance(jts_text[i], lengths[i], dim=0)
-            jts_sigma_ref = variance(jts_ref[i], lengths[i], dim=0)
-            self.AVE_joints += l2_norm(jts_sigma_text, jts_sigma_ref, dim=1)'''
+                # traj_sigma_text = variance(traj_text[i], lengths[i], dim=0)
+                # traj_sigma_ref = variance(traj_ref[i], lengths[i], dim=0)
+                # self.AVE_traj += l2_norm(traj_sigma_text, traj_sigma_ref, dim=0)
 
+                # poses_sigma_text = variance(poses_text[i], lengths[i], dim=0)
+                # poses_sigma_ref = variance(poses_ref[i], lengths[i], dim=0)
+                # self.AVE_pose += l2_norm(poses_sigma_text, poses_sigma_ref, dim=1)
+
+                # jts_sigma_text = variance(jts_text[i], lengths[i], dim=0)
+                # jts_sigma_ref = variance(jts_ref[i], lengths[i], dim=0)
+                # self.AVE_joints += l2_norm(jts_sigma_text, jts_sigma_ref, dim=1)
+                # '''
+            
     def transform(self, joints: Tensor, lengths):
         features = self.rifke(joints)
 
