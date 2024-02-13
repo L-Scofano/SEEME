@@ -280,6 +280,7 @@ class MLD(BaseModel):
         return z
 
     def forward(self, batch):
+        # ! This function is not used neither in training nor in testing
         texts = batch["text"]
         lengths = batch["length"]
         if self.cfg.TEST.COUNT_TIME:
@@ -749,6 +750,9 @@ class MLD(BaseModel):
             feats_ref, transl, beta, utils_, scene, length, img_path = batch
             cond_image_emb = None
             scene = scene.float()
+
+            # * Classifier free guidance
+            
             
             scene = self.proscene.encode_scene(scene)
             scene = self.output_scene(scene).unsqueeze(0) # shape: 1,64,256
@@ -762,12 +766,10 @@ class MLD(BaseModel):
         feats_ref = feats_ref.float()
         transl = transl.float()
         beta = beta.float()
-
- 
-
         lengths = [feats_ref.shape[1]]*feats_ref.shape[0]
 
-        # motion encode
+
+        # * Encode Motion (VAE)
         with torch.no_grad():
             if self.vae_type in ["mld", "vposert", "actor"]:
                 if self.estimate == 'wearer':
@@ -826,6 +828,7 @@ class MLD(BaseModel):
 
         # * Classifier free guidance
         if self.do_classifier_free_guidance:
+            # TODO
             mask = torch.rand_like(cond_emb) < self.guidance_uncodp
             cond_emb = torch.where(mask, 0.0, cond_emb)
 
@@ -1036,6 +1039,7 @@ class MLD(BaseModel):
             
             
             if self.do_classifier_free_guidance:
+                # TODO
                 # * create a tensor with all 0s which is (1, cond_emb.shape[1], cond_emb.shape[2])
                 empty_tensor = torch.zeros((cond_emb.shape[0], cond_emb.shape[1], cond_emb.shape[2])).to(cond_emb.device)
                 # *concatenate the empty tensor with the cond_emb
