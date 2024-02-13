@@ -752,7 +752,9 @@ class MLD(BaseModel):
             scene = scene.float()
 
             # * Classifier free guidance
-            
+            if self.do_classifier_free_guidance:
+                mask = torch.rand_like(scene) < self.guidance_uncodp
+                scene = torch.where(mask, 0.0, scene)
             
             scene = self.proscene.encode_scene(scene)
             scene = self.output_scene(scene).unsqueeze(0) # shape: 1,64,256
@@ -796,8 +798,16 @@ class MLD(BaseModel):
                         f_ref_int = feats_ref[:,:,1,:]
                         t_ref_int = transl[:,1,:,:]
                         f_ref_int = torch.cat([f_ref_int, t_ref_int], dim=-1)
+                        # * Classifier free guidance
+                        if self.do_classifier_free_guidance:
+                            mask = torch.rand_like(f_ref_int) < self.guidance_uncodp
+                            f_ref_int = torch.where(mask, 0.0, f_ref_int)
                         z_cond, dist_cond = self.vae.encode(f_ref_int, cond_image_emb, lengths)
                     else:
+                        # * Classifier free guidance
+                        if self.do_classifier_free_guidance:
+                            mask = torch.rand_like(feats_ref[:,:,1]) < self.guidance_uncodp
+                            feats_ref[:,:,1] = torch.where(mask, 0.0, feats_ref[:,:,1])
                         z_cond, dist_cond = self.vae.encode(feats_ref[:,:,1], cond_image_emb, lengths)
                 
             elif self.vae_type == "no":
@@ -825,12 +835,6 @@ class MLD(BaseModel):
             cond_emb = z_cond
         else:
             cond_emb = None
-
-        # * Classifier free guidance
-        if self.do_classifier_free_guidance:
-            # TODO
-            mask = torch.rand_like(cond_emb) < self.guidance_uncodp
-            cond_emb = torch.where(mask, 0.0, cond_emb)
 
         # diffusion process return with noise and noise_pred
         n_set = self._diffusion_process(z, cond_emb, lengths)
@@ -921,9 +925,22 @@ class MLD(BaseModel):
             dict_images = np.array(dict_images)
             cond_image_emb = None
             scene = scene.float()
+
+            # * Classifier free guidance
+            if self.do_classifier_free_guidance:
+                empty_tensor_scene = torch.zeros((scene.shape[0], scene.shape[1], scene.shape[2])).to(scene.device)
+                empty_tensor_scene = empty_tensor_scene.float()
+                scene_emb_uncond_512 = self.proscene.encode_scene(empty_tensor_scene)
+                scene_emb_uncond = self.output_scene(scene_emb_uncond_512).unsqueeze(0)
             
             scene_512 = self.proscene.encode_scene(scene)
             scene = self.output_scene(scene_512).unsqueeze(0) # shape: 1,64,256
+
+            # * Classifier free guidance
+            if self.do_classifier_free_guidance:
+                scene = torch.cat([scene, scene_emb_uncond], dim=1)
+
+
 
         else:
             feats_ref, transl, beta, utils_, length = batch
@@ -1007,11 +1024,16 @@ class MLD(BaseModel):
 
                     if self.see_future:
                         f_ref_int = f_ref_int[:, :, :]
-                
+
                     text_emb, _ = self.vae.encode(f_ref_int, cond_image_emb, lengths)
 
-                    
-                    
+                    # * Classifier free guidance
+                    if self.do_classifier_free_guidance:
+                        empty_tensor_interactee = torch.zeros((f_ref_int.shape[0], f_ref_int.shape[1], f_ref_int.shape[2])).to(f_ref_int.device)
+                        interactee_emb_uncond, _ = self.vae.encode(empty_tensor_interactee, cond_image_emb, lengths)
+                        text_emb = torch.cat([interactee_emb_uncond, text_emb], dim=1)
+                
+                        
                 else:
                     text_emb, _ = self.vae.encode(feats_ref[:,:,1], cond_image_emb, lengths)
 
@@ -1038,12 +1060,10 @@ class MLD(BaseModel):
                 cond_emb = None
             
             
-            if self.do_classifier_free_guidance:
-                # TODO
-                # * create a tensor with all 0s which is (1, cond_emb.shape[1], cond_emb.shape[2])
-                empty_tensor = torch.zeros((cond_emb.shape[0], cond_emb.shape[1], cond_emb.shape[2])).to(cond_emb.device)
-                # *concatenate the empty tensor with the cond_emb
-                cond_emb = torch.cat([empty_tensor, cond_emb], dim=1)
+            # if self.do_classifier_free_guidance:
+            #     empty_tensor = torch.zeros((cond_emb.shape[0], cond_emb.shape[1], cond_emb.shape[2])).to(cond_emb.device)
+            #     # *concatenate the empty tensor with the cond_emb
+            #     cond_emb = torch.cat([empty_tensor, cond_emb], dim=1)
             
             z = self._diffusion_reverse(cond_emb.permute(1,0,2), lengths)
           
