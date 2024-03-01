@@ -76,15 +76,21 @@ for i in tqdm(range(len(train_list))):
     # iterate over all the keys
     recording['interactee']['body_pose'] = np.array(recording['interactee']['body_pose'])
     recording['interactee']['global_orient'] = np.array(recording['interactee']['global_orient'])
+    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
+
 
     recording['wearer']['body_pose'] = np.array(recording['wearer']['body_pose'])
     recording['wearer']['global_orient'] = np.array(recording['wearer']['global_orient'])
+    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
 
     full_pose_aa_interactee = np.concatenate([recording['interactee']['global_orient'], 
-                                                  recording['interactee']['body_pose']], axis=-1).reshape(mlen,-1, 3)
-        
+                                               recording['interactee']['body_pose']],
+                                               recording['interactee']['transl'], axis=-1).reshape(mlen,-1, 3) 
+
+                                                          
     full_pose_aa_wearer = np.concatenate([recording['wearer']['global_orient'],
-                                                recording['wearer']['body_pose']], axis=-1).reshape(mlen,-1, 3)
+                                                recording['wearer']['body_pose']], 
+                                                recording['wearer']['transl'], axis=-1).reshape(mlen,-1, 3)
     
     full_pose_aa_interactee = torch.tensor(full_pose_aa_interactee, dtype=torch.float32)#.unsqueeze(0)
     full_pose_aa_wearer = torch.tensor(full_pose_aa_wearer, dtype=torch.float32)#.unsqueeze(0)
@@ -126,15 +132,21 @@ for i in tqdm(range(len(val_list))):
     # iterate over all the keys
     recording['interactee']['body_pose'] = np.array(recording['interactee']['body_pose'])
     recording['interactee']['global_orient'] = np.array(recording['interactee']['global_orient'])
+    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
+
 
     recording['wearer']['body_pose'] = np.array(recording['wearer']['body_pose'])
     recording['wearer']['global_orient'] = np.array(recording['wearer']['global_orient'])
+    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
 
     full_pose_aa_interactee = np.concatenate([recording['interactee']['global_orient'], 
-                                                  recording['interactee']['body_pose']], axis=-1).reshape(mlen,-1, 3)
-        
+                                               recording['interactee']['body_pose']],
+                                               recording['interactee']['transl'], axis=-1).reshape(mlen,-1, 3) 
+
+                                                          
     full_pose_aa_wearer = np.concatenate([recording['wearer']['global_orient'],
-                                                recording['wearer']['body_pose']], axis=-1).reshape(mlen,-1, 3)
+                                                recording['wearer']['body_pose']], 
+                                                recording['wearer']['transl'], axis=-1).reshape(mlen,-1, 3)
     
     full_pose_aa_interactee = torch.tensor(full_pose_aa_interactee, dtype=torch.float32)#.unsqueeze(0)
     full_pose_aa_wearer = torch.tensor(full_pose_aa_wearer, dtype=torch.float32)#.unsqueeze(0)
@@ -175,15 +187,21 @@ for i in tqdm(range(len(test_list))):
     # iterate over all the keys
     recording['interactee']['body_pose'] = np.array(recording['interactee']['body_pose'])
     recording['interactee']['global_orient'] = np.array(recording['interactee']['global_orient'])
+    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
+
 
     recording['wearer']['body_pose'] = np.array(recording['wearer']['body_pose'])
     recording['wearer']['global_orient'] = np.array(recording['wearer']['global_orient'])
+    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
 
     full_pose_aa_interactee = np.concatenate([recording['interactee']['global_orient'], 
-                                                  recording['interactee']['body_pose']], axis=-1).reshape(mlen,-1, 3)
-        
+                                               recording['interactee']['body_pose']],
+                                               recording['interactee']['transl'], axis=-1).reshape(mlen,-1, 3) 
+
+                                                          
     full_pose_aa_wearer = np.concatenate([recording['wearer']['global_orient'],
-                                                recording['wearer']['body_pose']], axis=-1).reshape(mlen,-1, 3)
+                                                recording['wearer']['body_pose']], 
+                                                recording['wearer']['transl'], axis=-1).reshape(mlen,-1, 3)
     
     full_pose_aa_interactee = torch.tensor(full_pose_aa_interactee, dtype=torch.float32)#.unsqueeze(0)
     full_pose_aa_wearer = torch.tensor(full_pose_aa_wearer, dtype=torch.float32)#.unsqueeze(0)
