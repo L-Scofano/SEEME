@@ -3,7 +3,7 @@
 ####################################
 
 # Experiment name, more details in Section 'Experiment Name Explanation'
-NAME: s2_scene_interactee_cfg
+NAME: s2_PredictALL_interactee_cfreeguid
 # Debug mode. Set to True will enter the debug mode, then the program will
 # 1. use a tiny dataset for trianing and evaluation
 # 2. validate more intensively
@@ -12,8 +12,8 @@ DEBUG: False
 # Devices. Optional: “cpu”, “gpu”
 ACCELERATOR: 'gpu'
 # Index of GPUs eg. [0] or [0,1,2,3]
-DEVICE: [3,4] # [0,5,6,7]
-TEST_DEVICE: [5]
+DEVICE: [0,1] # [0,5,6,7]
+TEST_DEVICE: [1]
 ESTIMATE: 'wearer' # 'interactee' or 'wearer'
 DATA_TYPE: 'angle' # 'angle' or 'rot6d'
 MOTION_LENGTH: 60
@@ -27,7 +27,7 @@ TRAIN:
   # Training dataset name
   DATASETS: ['egobody']
   # Number of dataloader workers
-  NUM_WORKERS: 8
+  NUM_WORKERS: 4 #! [4, 8]
   # Size of batches
   BATCH_SIZE: 64
   # Total epochs for training
@@ -62,14 +62,14 @@ EVAL:
 # The following are testing settings
 #####################################
 TEST:
-  CHECKPOINTS: ./experiments/mld/s2_PredictALL_scene_interactee/checkpoints/epoch=5999.ckpt #./experiments/mld/s2_our1_scene_interactee/checkpoints/epoch=5999.ckpt # Pretrained model path
+  CHECKPOINTS: ./experiments/mld/s2_PredictALL_scene/checkpoints/seeme_scene_5999.ckpt #./experiments/mld/s2_our1_scene_interactee/checkpoints/epoch=5999.ckpt # Pretrained model path
   DATASETS: ['egobody'] # training datasets
   SPLIT: test
   BATCH_SIZE: 64 # training Batch size
   MEAN: False
   NUM_SAMPLES: 1
   FACT: 1
-  REPLICATION_TIMES: 1
+  REPLICATION_TIMES: 2 #! [1, 2, 5]
   INTERACTEE_PRED: False # pose of the interactee pred by egohmr
   GLOBAL_ORIENT_PRED: True  # global orientation pred by OUR MODEL
   BETAS_PRED: False #! PUT FALSE WHEN TRAINING #! NOT WORKING
@@ -112,15 +112,15 @@ LOSS:
 model:
   vae: true # whether vae model
   model_type: mld # model type
-  condition: ['text','interactee','scene'] # condition type 
+  condition: ['text','scene','interactee'] # condition type 
   latent_dim: [1, 256] # latent dimension
   ff_size: 128 #1024 #
   num_layers: 5 #9 # number of layers
   num_head: 1 #4 # number of head layers
   droupout: 0.1 # dropout rate
   activation: gelu # activation type
-  guidance_scale: 7.5 #1.0 #7.5 #!!
-  guidance_uncondp: 0.1 # 0.1 0.25
+  guidance_scale: 7.5 #! if 1.0 no cfg [1.0, 7.5]
+  guidance_uncondp: 0.1 #! percentage of uncond. [0.1, 0.25]
   nfeats: 75 #85
   njoints: 23
   smpl_path: './deps/smpl_models/smpl/SMPL_NEUTRAL.pkl'
@@ -132,7 +132,7 @@ model:
 LOGGER:
   SACE_CHECKPOINT_EPOCH: 200
   LOG_EVERY_STEPS: 1
-  VAL_EVERY_STEPS: 200
+  VAL_EVERY_STEPS: 1 #! [1, 200]
   TENSORBOARD: True
   WANDB:
     PROJECT: null #ego-estimation #null
