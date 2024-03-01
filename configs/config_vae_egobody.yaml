@@ -1,12 +1,14 @@
 NAME: s1_PredictALL_1e-05 # Experiment name
 DEBUG: False # Debug mode
 ACCELERATOR: 'gpu' # Devices optioncal: “cpu”, “gpu”, “tpu”, “ipu”, “hpu”, “mps, “auto”
-DEVICE: [0,2,4,5,6,7] #[0,5,6,7] #[4,5,6,7] #[0,1,2,3,4,5,6,7] #[4,5,6,7] # [0,1,2,3,4,5,6,7] # Index of gpus eg. [0] or [0,1,2,3]
+DEVICE: [1] #[0,5,6,7] #[4,5,6,7] #[0,1,2,3,4,5,6,7] #[4,5,6,7] # [0,1,2,3,4,5,6,7] # Index of gpus eg. [0] or [0,1,2,3]
 TEST_DEVICE: [0]
 # Training configuration
 ESTIMATE: 'wearer' # 'interactee' or 'wearer'
 DATA_TYPE: 'angle' # 'angle' or 'rot6d'
 MOTION_LENGTH: 60
+DATASET_NAME: 'egobody'
+
 TRAIN:
   #---------------------------------
   STAGE: vae # stage "vae" or "diffusion", "vae_diffusion"
@@ -53,7 +55,9 @@ TEST:
   BETAS_PRED: False #!! NOTE: we don't need this
   TRANSL_EGOEGO: False #!! NOTE: this is FOR HEAD
   GLOBAL_ORIENT_EGOEGO: False #!! NOTE: this is FOR HEAD
-  DROID_SLAM_CUT: True
+  DROID_SLAM_CUT: False #! true=usi il dataset cappato
+  POSE_ESTIMATION_TASK: False #! NOT WORKING
+  SEE_FUTURE: False #! ABLATION SU WEARER CHE VEDE IL FUTURO DEL INTERACTEE
 
 # Datasets Configuration
 DATASET:
@@ -122,7 +126,7 @@ LOGGER:
   VAL_EVERY_STEPS: 200 #10
   TENSORBOARD: True
   WANDB:
-    PROJECT: ego-estimation #null
+    PROJECT: null #null
     OFFLINE: False
     RESUME_ID: null
     ENTITY: 'pinlab-sapienza'
