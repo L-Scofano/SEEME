@@ -1823,7 +1823,7 @@ class GimoData(data.Dataset):
             interactee_gt_pose_estimation = data['interactee']
 
         list_imgname = []
-        for imgname in recording_utils['original_imgname']:
+        for imgname in video:
             list_imgname.append(str(imgname))
         
         #img_name_dict = torch.tensor(list_imgname)

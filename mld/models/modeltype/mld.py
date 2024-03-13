@@ -1392,8 +1392,11 @@ class MLD(BaseModel):
                 transl_ref = transl_ref.reshape(-1, 3).float()
 
                 joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, global_orient=global_pose_ref, transl=transl_ref,pose2rot=True)
+                vertices_ref = joint_ref.vertices
+                vertices_ref = vertices_ref.reshape(-1, feats_ref.shape[1], 6890, 3)
                 joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:24]
                 orientation_quat_ref = aa_to_quat(global_pose_ref)
+
 
                 
                 
@@ -1415,11 +1418,40 @@ class MLD(BaseModel):
 
                 body_pose_rst = torch.cat([body_pose_rst, torch.zeros(body_pose_rst.shape[0], 6).to(global_pose_rst.device)], dim=-1)
                 joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_rst, transl=transl_rst,pose2rot=True)
+                vertices_rst = joints_rst.vertices
+                vertices_rst = vertices_rst.reshape(-1, feats_rst.shape[1], 6890, 3)    
                 joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:24]
                 orientation_quat_rst = aa_to_quat(global_pose_rst)
 
 
+                
+                if 'interactee' in self.condition:
+                    interactee = f_ref_int #feats_rst_int #f_ref_int
+                    feats_int = self.renorm(interactee)
+                    feats_int = feats_int[:, :min_len, :]
+                    body_pose_int = feats_int[:, :min_len, 3:72].reshape(-1, 23*3).float()
+                    betas_int =  beta[:, 1, :min_len, :].reshape(-1, 10).float()
+                    global_pose_int = feats_int[:, :min_len, :3].reshape(-1, 3).float()
+                    orientation_quat_int = aa_to_quat(global_pose_int)
+                                    # Set translation start to [0,0,0]
+                    transl_int = feats_int[:, :min_len, 72:75]
+                    if self.save_for_edo:
+                        transl_int = transl_int - for_int
+                    transl_int = transl_int.reshape(-1, 3).float()
+                    joint_int = self.smpl_model(betas=betas_int, body_pose=body_pose_int,
+                                                global_orient=global_pose_int,pose2rot=True,transl=transl_int)
+                    
+                    vertices_int = joint_int.vertices
+                    vertices_int = vertices_int.reshape(-1, feats_ref.shape[1], 6890, 3)
+                    joints_int = joint_int.joints.reshape(-1, feats_int.shape[1], 45, 3)[:,:min_len,:24]
+                    root_interactee = joints_int[:,:,[0],:]
+                else:
+                    joints_int = torch.rand_like(joints_rst)
+                    root_interactee = joints_int[:,:,[0],:]
+                    orientation_quat_int = torch.rand_like(orientation_quat_rst)
+
                 if self.save_for_edo:
+                    
                     to_save = 'results_ours_gimo'
                     # create folder if not exists
                     if not os.path.exists(to_save):
@@ -1455,7 +1487,7 @@ class MLD(BaseModel):
 
                         head_orientation_error = self.get_frobenious_norm_rot_only(head_gt_, head_pred_)
                         print(frame_start)
-                        if head_orientation_error < 0.3:
+                        if head_orientation_error < 0.64:
                             print('Saving, we have the following number of sequence: ', len(self.dict_pred.keys()))
 
                             self.dict_pred[str(frame_start)] = vertices_rst[btc].detach().cpu().numpy()
