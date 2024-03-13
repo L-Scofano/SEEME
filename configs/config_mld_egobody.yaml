@@ -3,7 +3,7 @@
 ####################################
 
 # Experiment name, more details in Section 'Experiment Name Explanation'
-NAME: s2_PredictALL_interactee_cfreeguid
+NAME: s2_scene_interactee_cfg_march
 # Debug mode. Set to True will enter the debug mode, then the program will
 # 1. use a tiny dataset for trianing and evaluation
 # 2. validate more intensively
@@ -12,8 +12,8 @@ DEBUG: False
 # Devices. Optional: “cpu”, “gpu”
 ACCELERATOR: 'gpu'
 # Index of GPUs eg. [0] or [0,1,2,3]
-DEVICE: [0,1] # [0,5,6,7]
-TEST_DEVICE: [1]
+DEVICE: [1,4,5,6] # [0,5,6,7]
+TEST_DEVICE: [6]
 ESTIMATE: 'wearer' # 'interactee' or 'wearer'
 DATA_TYPE: 'angle' # 'angle' or 'rot6d'
 MOTION_LENGTH: 60
@@ -27,7 +27,7 @@ TRAIN:
   # Training dataset name
   DATASETS: ['egobody']
   # Number of dataloader workers
-  NUM_WORKERS: 4 #! [4, 8]
+  NUM_WORKERS: 8 #! [4, 8]
   # Size of batches
   BATCH_SIZE: 64
   # Total epochs for training
@@ -62,14 +62,14 @@ EVAL:
 # The following are testing settings
 #####################################
 TEST:
-  CHECKPOINTS: ./experiments/mld/s2_PredictALL_scene/checkpoints/seeme_scene_5999.ckpt #./experiments/mld/s2_our1_scene_interactee/checkpoints/epoch=5999.ckpt # Pretrained model path
+  CHECKPOINTS: ./experiments/mld/s2_scene_interactee/checkpoints/epoch=1999.ckpt #./experiments/mld/s2_our1_scene_interactee/checkpoints/epoch=5999.ckpt # Pretrained model path
   DATASETS: ['egobody'] # training datasets
   SPLIT: test
   BATCH_SIZE: 64 # training Batch size
   MEAN: False
   NUM_SAMPLES: 1
   FACT: 1
-  REPLICATION_TIMES: 2 #! [1, 2, 5]
+  REPLICATION_TIMES: 1 #! [1, 2, 5]
   INTERACTEE_PRED: False # pose of the interactee pred by egohmr
   GLOBAL_ORIENT_PRED: True  # global orientation pred by OUR MODEL
   BETAS_PRED: False #! PUT FALSE WHEN TRAINING #! NOT WORKING
@@ -112,14 +112,14 @@ LOSS:
 model:
   vae: true # whether vae model
   model_type: mld # model type
-  condition: ['text','scene','interactee'] # condition type 
+  condition: ['text','scene','interactee'] #! ['text','scene','interactee']
   latent_dim: [1, 256] # latent dimension
   ff_size: 128 #1024 #
   num_layers: 5 #9 # number of layers
   num_head: 1 #4 # number of head layers
   droupout: 0.1 # dropout rate
   activation: gelu # activation type
-  guidance_scale: 7.5 #! if 1.0 no cfg [1.0, 7.5]
+  guidance_scale: 1.0 #! if 1.0 no cfg [1.0, 7.5]
   guidance_uncondp: 0.1 #! percentage of uncond. [0.1, 0.25]
   nfeats: 75 #85
   njoints: 23
@@ -135,7 +135,7 @@ LOGGER:
   VAL_EVERY_STEPS: 1 #! [1, 200]
   TENSORBOARD: True
   WANDB:
-    PROJECT: null #ego-estimation #null
+    PROJECT: null #! [null, ego-estimation]
     OFFLINE: False
     RESUME_ID: null
     ENTITY: 'pinlab-sapienza'

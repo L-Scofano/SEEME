@@ -55,9 +55,9 @@ def rotmat_to_rot6d(x_batch, rot6d_mode='prohmr'):
         pass  # todo
     return xr_repr
 
-train = './datasets/EgoBody/our_process_smpl_split/train/'
-val = './datasets/EgoBody/our_process_smpl_split/val/'
-test = './datasets/EgoBody/our_process_smpl_split/test/'
+train = './datasets/EgoBody/our_process_smpl_split_NEW/train/'
+val = './datasets/EgoBody/our_process_smpl_split_NEW/val/'
+test = './datasets/EgoBody/our_process_smpl_split_NEW/test/'
 
 # list of all the recordings
 train_list = os.listdir(train)
@@ -68,6 +68,7 @@ test_list = os.listdir(test)
 n_sample = 0
 sum_total = torch.tensor([0.]*144)
 std_total = torch.tensor([0.]*144)
+
 for i in tqdm(range(len(train_list))):
     # load the recording
     recording = np.load(train+train_list[i], allow_pickle=True).item()
@@ -76,7 +77,7 @@ for i in tqdm(range(len(train_list))):
     # iterate over all the keys
     recording['interactee']['body_pose'] = np.array(recording['interactee']['body_pose'])
     recording['interactee']['global_orient'] = np.array(recording['interactee']['global_orient'])
-    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
+    recording['interactee']['transl'] = np.array(recording['interactee']['transl'])
 
 
     recording['wearer']['body_pose'] = np.array(recording['wearer']['body_pose'])
@@ -84,13 +85,13 @@ for i in tqdm(range(len(train_list))):
     recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
 
     full_pose_aa_interactee = np.concatenate([recording['interactee']['global_orient'], 
-                                               recording['interactee']['body_pose']],
-                                               recording['interactee']['transl'], axis=-1).reshape(mlen,-1, 3) 
+                                               recording['interactee']['body_pose'],
+                                               recording['interactee']['transl']], axis=-1).reshape(mlen,-1, 3) 
 
                                                           
     full_pose_aa_wearer = np.concatenate([recording['wearer']['global_orient'],
-                                                recording['wearer']['body_pose']], 
-                                                recording['wearer']['transl'], axis=-1).reshape(mlen,-1, 3)
+                                                recording['wearer']['body_pose'], 
+                                                recording['wearer']['transl']], axis=-1).reshape(mlen,-1, 3)
     
     full_pose_aa_interactee = torch.tensor(full_pose_aa_interactee, dtype=torch.float32)#.unsqueeze(0)
     full_pose_aa_wearer = torch.tensor(full_pose_aa_wearer, dtype=torch.float32)#.unsqueeze(0)
@@ -122,8 +123,6 @@ for i in tqdm(range(len(train_list))):
     n_sample += 2*mlen
 
 
-
-
 for i in tqdm(range(len(val_list))):
     # load the recording
     recording = np.load(val+val_list[i], allow_pickle=True).item()
@@ -132,7 +131,7 @@ for i in tqdm(range(len(val_list))):
     # iterate over all the keys
     recording['interactee']['body_pose'] = np.array(recording['interactee']['body_pose'])
     recording['interactee']['global_orient'] = np.array(recording['interactee']['global_orient'])
-    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
+    recording['interactee']['transl'] = np.array(recording['interactee']['transl'])
 
 
     recording['wearer']['body_pose'] = np.array(recording['wearer']['body_pose'])
@@ -140,13 +139,13 @@ for i in tqdm(range(len(val_list))):
     recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
 
     full_pose_aa_interactee = np.concatenate([recording['interactee']['global_orient'], 
-                                               recording['interactee']['body_pose']],
-                                               recording['interactee']['transl'], axis=-1).reshape(mlen,-1, 3) 
+                                               recording['interactee']['body_pose'],
+                                               recording['interactee']['transl']], axis=-1).reshape(mlen,-1, 3) 
 
                                                           
     full_pose_aa_wearer = np.concatenate([recording['wearer']['global_orient'],
-                                                recording['wearer']['body_pose']], 
-                                                recording['wearer']['transl'], axis=-1).reshape(mlen,-1, 3)
+                                                recording['wearer']['body_pose'], 
+                                                recording['wearer']['transl']], axis=-1).reshape(mlen,-1, 3)
     
     full_pose_aa_interactee = torch.tensor(full_pose_aa_interactee, dtype=torch.float32)#.unsqueeze(0)
     full_pose_aa_wearer = torch.tensor(full_pose_aa_wearer, dtype=torch.float32)#.unsqueeze(0)
@@ -187,7 +186,7 @@ for i in tqdm(range(len(test_list))):
     # iterate over all the keys
     recording['interactee']['body_pose'] = np.array(recording['interactee']['body_pose'])
     recording['interactee']['global_orient'] = np.array(recording['interactee']['global_orient'])
-    recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
+    recording['interactee']['transl'] = np.array(recording['interactee']['transl'])
 
 
     recording['wearer']['body_pose'] = np.array(recording['wearer']['body_pose'])
@@ -195,13 +194,13 @@ for i in tqdm(range(len(test_list))):
     recording['wearer']['transl'] = np.array(recording['wearer']['transl'])
 
     full_pose_aa_interactee = np.concatenate([recording['interactee']['global_orient'], 
-                                               recording['interactee']['body_pose']],
-                                               recording['interactee']['transl'], axis=-1).reshape(mlen,-1, 3) 
+                                               recording['interactee']['body_pose'],
+                                               recording['interactee']['transl']], axis=-1).reshape(mlen,-1, 3) 
 
                                                           
     full_pose_aa_wearer = np.concatenate([recording['wearer']['global_orient'],
-                                                recording['wearer']['body_pose']], 
-                                                recording['wearer']['transl'], axis=-1).reshape(mlen,-1, 3)
+                                                recording['wearer']['body_pose'], 
+                                                recording['wearer']['transl']], axis=-1).reshape(mlen,-1, 3)
     
     full_pose_aa_interactee = torch.tensor(full_pose_aa_interactee, dtype=torch.float32)#.unsqueeze(0)
     full_pose_aa_wearer = torch.tensor(full_pose_aa_wearer, dtype=torch.float32)#.unsqueeze(0)
@@ -235,10 +234,9 @@ for i in tqdm(range(len(test_list))):
     
 mean = sum_total/n_sample
 std = std_total/n_sample
-
 # save the mean and std
-np.save('./datasets/EgoBody/our_process_smpl/mean_144', mean)
-np.save('./datasets/EgoBody/our_process_smpl/std_144', std)
+np.save('./datasets/EgoBody/our_process_smpl_split_NEW/mean', mean)
+np.save('./datasets/EgoBody/our_process_smpl_split_NEW/std', std)
 
 
 print('Mean: ', sum_total/n_sample)

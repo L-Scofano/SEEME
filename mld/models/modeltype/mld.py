@@ -1380,15 +1380,17 @@ class MLD(BaseModel):
                         self.my_counter += 1
                     
             elif self.name_dataset == 'gimo':
-                print('gimo')
-                quit()
                 body_pose_ref = feats_ref[:, :min_len, 3:66].reshape(-1, 21*3).float()
                 #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
                 betas_ref = beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
                 global_pose_ref = feats_ref[:, :min_len, :3].reshape(-1, 3).float()
                 #transl_ref = feats_ref[:, :min_len, 69+10+3:].view(-1, 3)
                 body_pose_ref = torch.cat([body_pose_ref, torch.zeros(body_pose_ref.shape[0], 6).to(body_pose_ref.device)], dim=-1)
-                transl_ref = feats_ref[:,:,-3:].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+                transl_ref = feats_ref[:,:,-3:] if self.predict_transl else transl[:, idx_ref, :min_len, :]
+                if self.save_for_edo:
+                    transl_ref = transl_ref - transl_ref[:, :1]
+                transl_ref = transl_ref.reshape(-1, 3).float()
+
                 joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, global_orient=global_pose_ref, transl=transl_ref,pose2rot=True)
                 joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:24]
                 orientation_quat_ref = aa_to_quat(global_pose_ref)
@@ -1406,34 +1408,74 @@ class MLD(BaseModel):
                 betas_rst = beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
                 global_pose_rst = feats_rst[:, :min_len, :3].reshape(-1, 3).float()
                 #transl_rst = feats_rst[:, :min_len, 69+10+3:].view(-1, 3)
-                transl_rst = feats_rst[:, :min_len, -3:].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+                transl_rst = feats_rst[:, :min_len, -3:] if self.predict_transl else transl[:, idx_ref, :min_len, :]
+                if self.save_for_edo:
+                    transl_rst = transl_rst - transl_rst[:, :1]
+                transl_rst = transl_rst.reshape(-1, 3).float()
+
                 body_pose_rst = torch.cat([body_pose_rst, torch.zeros(body_pose_rst.shape[0], 6).to(global_pose_rst.device)], dim=-1)
                 joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_rst, transl=transl_rst,pose2rot=True)
                 joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:24]
                 orientation_quat_rst = aa_to_quat(global_pose_rst)
 
 
-   
+                if self.save_for_edo:
+                    to_save = 'results_ours_gimo'
+                    # create folder if not exists
+                    if not os.path.exists(to_save):
+                        os.makedirs(to_save)
 
-            # INTERACTEE
-            if 'interactee' in self.condition:
-                interactee = f_ref_int #feats_rst_int #f_ref_int
-                feats_int = self.renorm(interactee)
-                feats_int = feats_int[:, :min_len, :]
-                body_pose_int = feats_int[:, :min_len, 3:72].reshape(-1, 23*3).float()
-                betas_int =  beta[:, 1, :min_len, :].reshape(-1, 10).float()
-                global_pose_int = feats_int[:, :min_len, :3].reshape(-1, 3).float()
-                orientation_quat_int = aa_to_quat(global_pose_int)
-                transl_int = feats_int[:, :min_len, 72:75].reshape(-1, 3).float()
-                joint_int = self.smpl_model(betas=betas_int, body_pose=body_pose_int,
-                                            global_orient=global_pose_int,pose2rot=True,transl=transl_int)
-                joints_int = joint_int.joints.reshape(-1, feats_int.shape[1], 45, 3)[:,:min_len,:24]
-                root_interactee = joints_int[:,:,[0],:]
-            else:
-                joints_int = torch.rand_like(joints_rst)
-                root_interactee = joints_int[:,:,[0],:]
-                orientation_quat_int = torch.rand_like(orientation_quat_rst)
-            #np.save('joints_int_s1ego11.npy', joints_int.detach().cpu().numpy())'''
+                    # ranndom alphannumeric string
+                    import random
+                    import string
+                    rand_str = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+
+                    #feats_rst1 = self.renorm(feats_rst).permute(1,0,2) #f_ref_int feats_rst
+                    name_dict = 'seq_'+str(self.my_counter)
+                  
+
+                    head_pred = joints_rst[:, :, [15], :].reshape(-1,3)
+                    head_gt = joints_ref[:, :, [15], :].reshape(-1,3)
+
+                    head_pred = torch.cat([head_pred, orientation_quat_rst.reshape(-1, 4)], dim=-1)
+                    head_gt = torch.cat([head_gt, orientation_quat_ref.reshape(-1, 4)], dim=-1)
+
+                    head_pred = np.array(self.get_root_matrix(head_pred.detach().cpu().numpy()))
+                    head_gt = np.array(self.get_root_matrix(head_gt.detach().cpu().numpy()))
+
+                    head_pred = head_pred.reshape(-1, 60, 4, 4)
+                    head_gt = head_gt.reshape(-1, 60, 4, 4)
+
+
+                    for btc in range(head_gt.shape[0]):
+                        head_pred_ = head_pred[btc, :lengths[btc]]
+                        head_gt_ = head_gt[btc, :lengths[btc]]
+
+                        frame_start = dict_images[0,btc]
+
+                        head_orientation_error = self.get_frobenious_norm_rot_only(head_gt_, head_pred_)
+                        print(frame_start)
+                        if head_orientation_error < 0.3:
+                            print('Saving, we have the following number of sequence: ', len(self.dict_pred.keys()))
+
+                            self.dict_pred[str(frame_start)] = vertices_rst[btc].detach().cpu().numpy()
+                            self.dict_gt[str(frame_start)] = vertices_ref[btc].detach().cpu().numpy()
+                            #self.dict_int[str(frame_start)] = vertices_int[btc].detach().cpu().numpy()
+                        #dict_pred_faces[name_dict] = faces_rst.detach().cpu().numpy()
+                        #dict_gt_faces[name_dict] = faces_ref.detach().cpu().numpy()
+
+                        
+
+
+                            np.save(f'{to_save}/dict_pred_gimo.npy', self.dict_pred)
+                            np.save(f'{to_save}/dict_gt_gimo.npy', self.dict_gt)
+                            #np.save(f'{to_save}/dict_int_select_orientation_images.npy', self.dict_int)
+                        #np.save(f'{to_save}/dict_pred_faces.npy', dict_pred_faces)
+                        #np.save(f'{to_save}/dict_gt_faces.npy', dict_gt_faces)
+                        self.my_counter += 1
+
+
+   
 
             if self.pose_estimation_task:
                 f_int_gt = int_gt_motion[:,:,0]
