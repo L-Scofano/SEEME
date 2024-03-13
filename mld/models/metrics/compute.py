@@ -366,12 +366,12 @@ class ComputeMetrics(Metric):
         if align_start:
             gt_move_transl = jts_ref[:, 0:1, 15:16, :] 
             pred_move_transl = jts_text[:, 0:1, 15:16, :]
-            # place traj at floor
-            gt_move_transl[:, :, :, 2]*=0
-            pred_move_transl[:, :, :, 2]*=0
-
+            # place traj at floor # !(x, y, z) or (x, z, y)?
+            # gt_move_transl[:, :, :, 2]*=0
+            # pred_move_transl[:, :, :, 2]*=0
             jts_ref = jts_ref - gt_move_transl
             jts_text = jts_text - pred_move_transl
+            # breakpoint()
 
             save_npy = False
             if save_npy:
@@ -381,8 +381,7 @@ class ComputeMetrics(Metric):
 
             pelvis_gt = jts_ref[:, :, [0]]
             pelvis_pred = jts_text[:, :, [0]]
-
-
+            # ? First check between distance
         else:
 
             pelvis_gt = jts_ref[:, :, [0]]
@@ -398,15 +397,12 @@ class ComputeMetrics(Metric):
         
         # !Align root (COMMENT=MPJPE, UNCOMMENT=PA-MPJPE)
         jts_text, jts_ref = self.align_root(jts_text, jts_ref)
-
+        # ? Second check between distance
 
         if joints_interactee_gt is not None:
             jts_int, jts_int_gt = self.align_root(joints_interactee, joints_interactee_gt)
         else:
             jts_int, _ = self.align_root(joints_interactee, joints_interactee)
-
-
-
 
         #_, poses_text, root_text, traj_text = self.transform(
         #    jts_text, lengths)
@@ -493,6 +489,8 @@ class ComputeMetrics(Metric):
             if split == 'test':
                 
                 # * Best of 5 predictions
+                # print('head_orientation_error', head_orientation_error)
+                # print('root_err', root_err)
                 if head_orientation_error<0.9 and root_err<300:                        
                         #! DECOMMENTA SE VUOI SALVARTI LE BEST PREDICTION
                         # import random
@@ -505,7 +503,7 @@ class ComputeMetrics(Metric):
                         # to_save = 'results_ours'
                         # np.save(f'{to_save}/{rand_str}.npy', dict__)
                         
-
+                    print('mpjpe_error', mpjpe_error)
                     if  np.mean(accl_error)>0:
                         #self.Person_dist.append(person_dist)
                         #self.orient_social.append(angles)

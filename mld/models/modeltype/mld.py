@@ -8,6 +8,7 @@ import smplx
 import numpy as np
 import torch
 import torch.nn as nn
+import math
 from torch import Tensor
 from torch.optim import AdamW
 from torchmetrics import MetricCollection
@@ -42,6 +43,33 @@ from EgoHMR.utils.pose_utils import *
 #from utils.renderer import *
 from EgoHMR.utils.other_utils import *
 from EgoHMR.utils.geometry import *
+
+def quaternion_matrix(quaternion):
+    """Return homogeneous rotation matrix from quaternion.
+
+    >>> M = quaternion_matrix([0.99810947, 0.06146124, 0, 0])
+    >>> numpy.allclose(M, rotation_matrix(0.123, [1, 0, 0]))
+    True
+    >>> M = quaternion_matrix([1, 0, 0, 0])
+    >>> numpy.allclose(M, numpy.identity(4))
+    True
+    >>> M = quaternion_matrix([0, 1, 0, 0])
+    >>> numpy.allclose(M, numpy.diag([1, -1, -1, 1]))
+    True
+
+    """
+    q = np.array(quaternion, dtype=np.float64, copy=True)
+    n = np.dot(q, q)
+    if n < 0.0001:
+        return np.identity(4)
+    q *= math.sqrt(2.0 / n)
+    q = np.outer(q, q)
+    return np.array([
+        [1.0-q[2, 2]-q[3, 3],     q[1, 2]-q[3, 0],     q[1, 3]+q[2, 0], 0.0],
+        [    q[1, 2]+q[3, 0], 1.0-q[1, 1]-q[3, 3],     q[2, 3]-q[1, 0], 0.0],
+        [    q[1, 3]-q[2, 0],     q[2, 3]+q[1, 0], 1.0-q[1, 1]-q[2, 2], 0.0],
+        [                0.0,                 0.0,                 0.0, 1.0]], dtype=np.float64)
+
 
 
 class MLD(BaseModel):
@@ -91,6 +119,11 @@ class MLD(BaseModel):
 
         smpl_path = cfg.model.smpl_path
 
+        self.my_counter=0
+        self.dict_pred = {}
+        self.dict_gt = {}
+        self.dict_int = {}
+
         # OUR
         #self.smpl_model = smplx.SMPL(
         #    model_path=smpl_path,
@@ -101,12 +134,19 @@ class MLD(BaseModel):
         #                            gender='neutral', create_transl=False,
         #                              batch_size=cfg.TEST.BATCH_SIZE)
         # EGOEGO
+        self.save_for_edo = True
         if self.data_type=='angle':
+
             self.smpl_model = smplx.SMPL(
-                model_path=smpl_path,
-                batch_size=cfg.TRAIN.BATCH_SIZE, 
-                gender='neutral')
-                #create_transl=False)
+                    model_path=smpl_path,
+                    batch_size=cfg.TRAIN.BATCH_SIZE, 
+                    gender='neutral')
+                    #create_transl=False)
+            #faces = self.smpl_model.faces_tensor
+            # Save faces
+            #faces = faces.cpu().numpy()
+            #np.save('./results_ours_new/faces.npy', faces)
+            #quit()
         elif self.data_type=='rot6d':
             self.smpl_model = smplx.create('./datasets/data/smpl/', model_type='smpl', gender='neutral').double()
 
@@ -878,6 +918,27 @@ class MLD(BaseModel):
         return rs_set
 
 
+    def get_frobenious_norm_rot_only(self, x, y):
+        error = 0.0
+        for i in range(len(x)):
+            x_mat = x[i][:3, :3]
+            y_mat_inv = np.linalg.inv(y[i][:3, :3])
+            error_mat = np.matmul(x_mat, y_mat_inv)
+            ident_mat = np.identity(3)
+            error += np.linalg.norm(ident_mat - error_mat, 'fro')
+        return error / len(x)
+
+    def get_root_matrix(self, poses):
+        matrices = []
+        for pose in poses:
+            mat = np.identity(4)
+            root_pos = pose[:3]
+            root_quat = pose[3:7]
+            mat = quaternion_matrix(root_quat)
+            mat[:3, 3] = root_pos
+            matrices.append(mat)
+        return matrices
+    
     def ego_eval(self, batch):
 
         if 'image' in self.condition and 'scene' in self.condition:
@@ -1122,6 +1183,7 @@ class MLD(BaseModel):
             feats_rst1 = self.renorm(feats_rst).permute(1,0,2) #f_ref_int feats_rst
             dict_ = {}
             
+            
             #for btc in range(len(dict_images)):
             #    seq = dict_images[btc]
             #    for i in range(len(seq)):
@@ -1181,7 +1243,7 @@ class MLD(BaseModel):
                 feats_ref = torch.cat([feats_ref, t_ref], dim=-1)
             feats_ref = self.renorm(feats_ref)
 
-
+            self.save_for_edo = True
             if self.name_dataset == 'egobody':
                 body_pose_ref = feats_ref[:, :min_len, 3:72].reshape(-1, 23*3).float()
                 #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
@@ -1189,18 +1251,23 @@ class MLD(BaseModel):
                 global_pose_ref = feats_ref[:, :min_len, :3].reshape(-1, 3).float()
                 orientation_quat_ref = aa_to_quat(global_pose_ref)
                 #transl_ref = feats_ref[:, :min_len, 69+10+3:].view(-1, 3)
-                transl_ref = feats_ref[:,:,-3:].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+
+                transl_ref = feats_ref[:,:,-3:] if self.predict_transl else transl[:, idx_ref, :min_len, :]
+                # Set translation start to [0,0,0]
+                if self.save_for_edo:
+                    transl_ref = transl_ref - transl_ref[:, :1]
+                transl_ref = transl_ref.reshape(-1, 3).float()
+
                 joint_ref = self.smpl_model(betas=betas_ref, body_pose=body_pose_ref, 
                                             global_orient=global_pose_ref, 
                                             pose2rot=True, transl=transl_ref)
                 
+
+                   
+                vertices_ref = joint_ref.vertices
                 joints_ref = joint_ref.joints.reshape(-1, feats_ref.shape[1], 45, 3)[:,:,:24]
-                # Add translation
-                #joints_ref = joints_ref + transl[:, 0, :min_len, :].unsqueeze(2).repeat(1, 1, 24, 1)
-                
-                # Save
-                #np.save('joints_ref_s1ego11.npy', joints_ref.detach().cpu().numpy())
-                
+                vertices_ref = vertices_ref.reshape(-1, feats_ref.shape[1], 6890, 3)
+
                 
                 feats_rst = feats_rst.contiguous()
                 feats_rst = self.renorm(feats_rst)
@@ -1215,16 +1282,106 @@ class MLD(BaseModel):
                 #transl_rst = feats_rst[:, :min_len, 69+10+3:].view(-1, 3)
                 
                 #transl_rst = ego_transl.reshape(-1,3).float() if self.transl_egoego else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
-                transl_rst = feats_rst[:, :min_len, 72:75].reshape(-1, 3).float() if self.predict_transl else transl[:, idx_ref, :min_len, :].reshape(-1, 3).float()
+                transl_rst = feats_rst[:, :min_len, 72:75] if self.predict_transl else transl[:, idx_ref, :min_len, :]
+                # Set translation start to [0,0,0]
+                if self.save_for_edo:
+                    for_int = transl_rst[:, :1]
+                    transl_rst = transl_rst - transl_rst[:, :1]
+                transl_rst = transl_rst.reshape(-1, 3).float()
                 
                 joints_rst = self.smpl_model(betas=betas_rst, body_pose=body_pose_rst, global_orient=global_pose_rst,
                                                 pose2rot=True,transl=transl_rst)
+                
+                vertices_rst = joints_rst.vertices
                 joints_rst = joints_rst.joints.reshape(-1, feats_rst.shape[1], 45, 3)[:,:,:24]
+                vertices_rst = vertices_rst.reshape(-1, feats_rst.shape[1], 6890, 3)
+                #faces_rst = joints_rst.faces
+                
                 # Add translation
                 #joints_rst = joints_rst + transl[:, 0, :min_len, :].unsqueeze(2).repeat(1, 1, 24, 1)
                 #np.save('joints_rst_s1ego11.npy', joints_rst.detach().cpu().numpy())
-            
+
+                # INTERACTEE
+                if 'interactee' in self.condition:
+                    interactee = f_ref_int #feats_rst_int #f_ref_int
+                    feats_int = self.renorm(interactee)
+                    feats_int = feats_int[:, :min_len, :]
+                    body_pose_int = feats_int[:, :min_len, 3:72].reshape(-1, 23*3).float()
+                    betas_int =  beta[:, 1, :min_len, :].reshape(-1, 10).float()
+                    global_pose_int = feats_int[:, :min_len, :3].reshape(-1, 3).float()
+                    orientation_quat_int = aa_to_quat(global_pose_int)
+                                    # Set translation start to [0,0,0]
+                    transl_int = feats_int[:, :min_len, 72:75]
+                    if self.save_for_edo:
+                        transl_int = transl_int - for_int
+                    transl_int = transl_int.reshape(-1, 3).float()
+                    joint_int = self.smpl_model(betas=betas_int, body_pose=body_pose_int,
+                                                global_orient=global_pose_int,pose2rot=True,transl=transl_int)
+                    
+                    vertices_int = joint_int.vertices
+                    vertices_int = vertices_int.reshape(-1, feats_ref.shape[1], 6890, 3)
+                    joints_int = joint_int.joints.reshape(-1, feats_int.shape[1], 45, 3)[:,:min_len,:24]
+                    root_interactee = joints_int[:,:,[0],:]
+                else:
+                    joints_int = torch.rand_like(joints_rst)
+                    root_interactee = joints_int[:,:,[0],:]
+                    orientation_quat_int = torch.rand_like(orientation_quat_rst)
+                #np.save('joints_int_s1ego11.npy', joints_int.detach().cpu().numpy())'''
+
+                if self.save_for_edo:
+                    to_save = 'results_ours_new'
+                    # ranndom alphannumeric string
+                    import random
+                    import string
+                    rand_str = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+
+                    #feats_rst1 = self.renorm(feats_rst).permute(1,0,2) #f_ref_int feats_rst
+                    name_dict = 'seq_'+str(self.my_counter)
+                  
+
+                    head_pred = joints_rst[:, :, [15], :].reshape(-1,3)
+                    head_gt = joints_ref[:, :, [15], :].reshape(-1,3)
+
+                    head_pred = torch.cat([head_pred, orientation_quat_rst.reshape(-1, 4)], dim=-1)
+                    head_gt = torch.cat([head_gt, orientation_quat_ref.reshape(-1, 4)], dim=-1)
+
+                    head_pred = np.array(self.get_root_matrix(head_pred.detach().cpu().numpy()))
+                    head_gt = np.array(self.get_root_matrix(head_gt.detach().cpu().numpy()))
+
+                    head_pred = head_pred.reshape(-1, 60, 4, 4)
+                    head_gt = head_gt.reshape(-1, 60, 4, 4)
+
+
+                    for btc in range(head_gt.shape[0]):
+                        head_pred_ = head_pred[btc, :lengths[btc]]
+                        head_gt_ = head_gt[btc, :lengths[btc]]
+
+                        frame_start = dict_images[0,btc]
+
+                        head_orientation_error = self.get_frobenious_norm_rot_only(head_gt_, head_pred_)
+                        print(frame_start)
+                        if head_orientation_error < 0.3:
+                            print('Saving, we have the following number of sequence: ', len(self.dict_pred.keys()))
+
+                            self.dict_pred[str(frame_start)] = vertices_rst[btc].detach().cpu().numpy()
+                            self.dict_gt[str(frame_start)] = vertices_ref[btc].detach().cpu().numpy()
+                            self.dict_int[str(frame_start)] = vertices_int[btc].detach().cpu().numpy()
+                        #dict_pred_faces[name_dict] = faces_rst.detach().cpu().numpy()
+                        #dict_gt_faces[name_dict] = faces_ref.detach().cpu().numpy()
+
+                        
+
+
+                            np.save(f'{to_save}/dict_pred_select_orientation_images.npy', self.dict_pred)
+                            np.save(f'{to_save}/dict_gt_select_orientation_images.npy', self.dict_gt)
+                            np.save(f'{to_save}/dict_int_select_orientation_images.npy', self.dict_int)
+                        #np.save(f'{to_save}/dict_pred_faces.npy', dict_pred_faces)
+                        #np.save(f'{to_save}/dict_gt_faces.npy', dict_gt_faces)
+                        self.my_counter += 1
+                    
             elif self.name_dataset == 'gimo':
+                print('gimo')
+                quit()
                 body_pose_ref = feats_ref[:, :min_len, 3:66].reshape(-1, 21*3).float()
                 #betas_ref = feats_ref[:, :min_len, 69:69+10].view(-1, 10)
                 betas_ref = beta[:, idx_ref, :min_len, :].reshape(-1, 10).float()
