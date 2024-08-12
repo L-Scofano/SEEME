@@ -10,33 +10,32 @@ NAME: s2_scene_interactee_cfg_march
 # 3. will not use `wandb logger`
 DEBUG: False
 # Devices. Optional: “cpu”, “gpu”
-ACCELERATOR: 'gpu'
+ACCELERATOR: "gpu"
 # Index of GPUs eg. [0] or [0,1,2,3]
-DEVICE: [1,4,5,6] # [0,5,6,7]
-TEST_DEVICE: [6]
-ESTIMATE: 'wearer' # 'interactee' or 'wearer'
-DATA_TYPE: 'angle' # 'angle' or 'rot6d'
+DEVICE: [1, 4, 5, 6] # [0,5,6,7]
+TEST_DEVICE: [0, 1]
+ESTIMATE: "wearer" # 'interactee' or 'wearer'
+DATA_TYPE: "angle" # 'angle' or 'rot6d'
 MOTION_LENGTH: 60
-DATASET_NAME: 'egobody'
+DATASET_NAME: "egobody"
 #####################################
 # The following are training settings
 #####################################
 TRAIN:
   # Model stage. Optional: "vae", "diffusion"
-  STAGE: diffusion
+  STAGE: vae # ! diffusion
   # Training dataset name
-  DATASETS: ['egobody']
+  DATASETS: ["egobody"]
   # Number of dataloader workers
   NUM_WORKERS: 8 #! [4, 8]
   # Size of batches
   BATCH_SIZE: 64
   # Total epochs for training
   END_EPOCH: 6000
-  CONDITION: 'none'
+  CONDITION: "none"
 
-
-  RESUME: '' # Resume training from this path
-  PRETRAINED_VAE: './experiments/mld/s1_PredictALL_1e-05/checkpoints/epoch=2999.ckpt' #'./experiments/mld/s1_our/checkpoints/epoch=2999.ckpt' # vae model path
+  RESUME: "" # Resume training from this path
+  PRETRAINED_VAE: "./experiments/mld/s1_PredictALL_1e-05/checkpoints/epoch=2999.ckpt" #'./experiments/mld/s1_our/checkpoints/epoch=2999.ckpt' # vae model path
   OPTIM:
     TYPE: AdamW # Optimizer type
     LR: 1e-4 # Learning rate
@@ -54,7 +53,7 @@ TRAIN:
 # The following are validation settings
 #####################################
 EVAL:
-  DATASETS: ['egobody'] # Evaluating datasets
+  DATASETS: ["egobody"] # Evaluating datasets
   BATCH_SIZE: 64 # Evaluating Batch size
   SPLIT: test
 
@@ -63,7 +62,7 @@ EVAL:
 #####################################
 TEST:
   CHECKPOINTS: ./experiments/mld/s2_scene_interactee/checkpoints/epoch=1999.ckpt #./experiments/mld/s2_our1_scene_interactee/checkpoints/epoch=5999.ckpt # Pretrained model path
-  DATASETS: ['egobody'] # training datasets
+  DATASETS: ["egobody"] # training datasets
   SPLIT: test
   BATCH_SIZE: 64 # training Batch size
   MEAN: False
@@ -71,7 +70,7 @@ TEST:
   FACT: 1
   REPLICATION_TIMES: 1 #! [1, 2, 5]
   INTERACTEE_PRED: False # pose of the interactee pred by egohmr
-  GLOBAL_ORIENT_PRED: True  # global orientation pred by OUR MODEL
+  GLOBAL_ORIENT_PRED: True # global orientation pred by OUR MODEL
   BETAS_PRED: False #! PUT FALSE WHEN TRAINING #! NOT WORKING
   TRANSL_EGOEGO: False #! INUTILE
   GLOBAL_ORIENT_EGOEGO: False #! INUTILE
@@ -83,13 +82,13 @@ TEST:
 # The following are basic datasets settings
 #####################################
 DATASET:
-  JOINT_TYPE: 'humanml3d' # join type
+  JOINT_TYPE: "humanml3d" # join type
 
 #####################################
 # The following are metric settings
 #####################################
 METRIC:
-  TYPE: ['EgoMetric']
+  TYPE: ["EgoMetric"]
 
 #####################################
 # The following are training losses settings
@@ -112,7 +111,7 @@ LOSS:
 model:
   vae: true # whether vae model
   model_type: mld # model type
-  condition: ['text','scene','interactee'] #! ['text','scene','interactee']
+  condition: ["text", "scene", "interactee"] #! ['text','scene','interactee']
   latent_dim: [1, 256] # latent dimension
   ff_size: 128 #1024 #
   num_layers: 5 #9 # number of layers
@@ -123,7 +122,7 @@ model:
   guidance_uncondp: 0.1 #! percentage of uncond. [0.1, 0.25]
   nfeats: 75 #85
   njoints: 23
-  smpl_path: './deps/smpl_models/smpl/SMPL_NEUTRAL.pkl'
+  smpl_path: "./deps/smpl_models/smpl/SMPL_NEUTRAL.pkl"
   pred_global_orient: True
 
 #####################################
@@ -138,9 +137,8 @@ LOGGER:
     PROJECT: null #! [null, ego-estimation]
     OFFLINE: False
     RESUME_ID: null
-    ENTITY: 'pinlab-sapienza'
-    GROUP: 'STAGE2'
-
+    ENTITY: "pinlab-sapienza"
+    GROUP: "STAGE2"
 
 PROSCENE:
   SMPL:
@@ -169,7 +167,7 @@ PROSCENE:
     KEYPOINTS_2D_FULL_MODE: 0.01
     # smpl params loss
     GLOBAL_ORIENT_EXP: 0.000
-    GLOBAL_ORIENT_MODE: 0.001  #
+    GLOBAL_ORIENT_MODE: 0.001 #
     BODY_POSE_EXP: 0.0
     BODY_POSE_MODE: 0.001
     ORTHOGONAL: 0.1

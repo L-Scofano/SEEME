@@ -1,12 +1,13 @@
+from typing import Dict, Optional, Tuple
+
 import torch
 import torch.nn as nn
 from torch.cuda.amp import autocast
-from typing import Optional, Dict, Tuple
-from nflows.flows import ConditionalGlow
 from yacs.config import CfgNode
 
-from EgoHMR.utils.geometry import rot6d_to_rotmat
 from EgoHMR.models.prohmr.fc_head import FCHead
+from EgoHMR.utils.geometry import rot6d_to_rotmat
+from nflows.flows import ConditionalGlow
 
 
 class SMPLFlow(nn.Module):
@@ -20,10 +21,14 @@ class SMPLFlow(nn.Module):
         super(SMPLFlow, self).__init__()
         self.cfg = cfg
         self.n_joints = 24
-        self.npose = 6*self.n_joints
-        self.flow = ConditionalGlow(cfg.MODEL.FLOW.DIM, cfg.MODEL.FLOW.LAYER_HIDDEN_FEATURES,
-                                    cfg.MODEL.FLOW.NUM_LAYERS, cfg.MODEL.FLOW.LAYER_DEPTH,
-                                    context_features=contect_feats_dim)
+        self.npose = 6 * self.n_joints
+        self.flow = ConditionalGlow(
+            cfg.MODEL.FLOW.DIM,
+            cfg.MODEL.FLOW.LAYER_HIDDEN_FEATURES,
+            cfg.MODEL.FLOW.NUM_LAYERS,
+            cfg.MODEL.FLOW.LAYER_DEPTH,
+            context_features=contect_feats_dim,
+        )
         self.fc_head = FCHead(cfg, contect_feats_dim)
 
     # Autocasting is disabled because SMPL has numerical instability issues with fp16 parameters.
@@ -41,16 +46,28 @@ class SMPLFlow(nn.Module):
 
         feats = feats.float()
         batch_size = feats.shape[0]
-        samples = torch.cat((smpl_params['global_orient'], smpl_params['body_pose']), dim=-1)  # [bs, 1, 144]
+        samples = torch.cat(
+            (smpl_params["global_orient"], smpl_params["body_pose"]), dim=-1
+        )  # [bs, 1, 144]
         num_samples = samples.shape[1]
-        feats = feats.reshape(batch_size, 1, -1).repeat(1, num_samples, 1)  # [bs, 1, 2048/2048+x]
-        log_prob, z = self.flow.log_prob(samples.reshape(batch_size*num_samples, -1).to(feats.dtype), feats.reshape(batch_size*num_samples, -1))
+        feats = feats.reshape(batch_size, 1, -1).repeat(
+            1, num_samples, 1
+        )  # [bs, 1, 2048/2048+x]
+        log_prob, z = self.flow.log_prob(
+            samples.reshape(batch_size * num_samples, -1).to(feats.dtype),
+            feats.reshape(batch_size * num_samples, -1),
+        )
         log_prob = log_prob.reshape(batch_size, num_samples)
         z = z.reshape(batch_size, num_samples, -1)
         return log_prob, z
 
     @autocast(enabled=False)
-    def forward(self, feats: torch.Tensor, num_samples: Optional[int] = None, z: Optional[torch.Tensor] = None) -> Tuple:
+    def forward(
+        self,
+        feats: torch.Tensor,
+        num_samples: Optional[int] = None,
+        z: Optional[torch.Tensor] = None,
+    ) -> Tuple:
         """
         Run a forward pass of the model.
         If z is not specified, then the model randomly draws num_samples samples for each image in the batch.
@@ -72,21 +89,32 @@ class SMPLFlow(nn.Module):
         batch_size = feats.shape[0]
 
         if z is None:
-            samples, log_prob, z = self.flow.sample_and_log_prob(num_samples, context=feats)
+            samples, log_prob, z = self.flow.sample_and_log_prob(
+                num_samples, context=feats
+            )
             z = z.reshape(batch_size, num_samples, -1)
             pred_params = samples.reshape(batch_size, num_samples, -1)
         else:
             num_samples = z.shape[1]
-            samples, log_prob, z = self.flow.sample_and_log_prob(num_samples, context=feats, noise=z)
+            samples, log_prob, z = self.flow.sample_and_log_prob(
+                num_samples, context=feats, noise=z
+            )
             pred_params = samples.reshape(batch_size, num_samples, -1)
 
-
-        pred_pose = pred_params[:, :, :self.npose]  # [bs, 1/num_sample, 144]  self.npose=144
+        pred_pose = pred_params[
+            :, :, : self.npose
+        ]  # [bs, 1/num_sample, 144]  self.npose=144
         pred_pose_6d = pred_pose.clone()
-        pred_pose = rot6d_to_rotmat(pred_pose.reshape(batch_size * num_samples, -1)).view(batch_size, num_samples, self.n_joints, 3, 3)  # [bs, 1/num_sample, 24, 3, 3]
-        pred_smpl_params = {'global_orient': pred_pose[:, :, [0]],
-                             'body_pose': pred_pose[:, :, 1:]}
+        pred_pose = rot6d_to_rotmat(
+            pred_pose.reshape(batch_size * num_samples, -1)
+        ).view(
+            batch_size, num_samples, self.n_joints, 3, 3
+        )  # [bs, 1/num_sample, 24, 3, 3]
+        pred_smpl_params = {
+            "global_orient": pred_pose[:, :, [0]],
+            "body_pose": pred_pose[:, :, 1:],
+        }
         pred_betas, pred_cam = self.fc_head(pred_smpl_params, feats)
-        pred_smpl_params['betas'] = pred_betas
+        pred_smpl_params["betas"] = pred_betas
 
         return pred_smpl_params, pred_cam, log_prob, z, pred_pose_6d
