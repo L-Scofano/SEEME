@@ -3,4 +3,3 @@ The official PyTorch implementation of the 2025 IEEE/CVF Winter Conference on Ap
 
 🚧 REPO UNDER CONSTRUCTION
 
-PREGO: online mistake detection in PRocedural EGOcentric videos (CVPR '24)
