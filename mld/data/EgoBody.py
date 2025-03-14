@@ -1,10 +1,20 @@
-#from .base import BASEDataModule
+# from .base import BASEDataModule
 from os.path import join as pjoin
+
 import numpy as np
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
-from .humanml.data.dataset import Text2MotionDatasetV2, TextOnlyDataset, EgoBodyData, DatasetEgobody, EgoBodyData2, EgoBodyData3
 import torch
+from torch.utils.data import DataLoader
+
+from .humanml.data.dataset import (
+    DatasetEgobody,
+    EgoBodyData,
+    EgoBodyData2,
+    EgoBodyData3,
+    Text2MotionDatasetV2,
+    TextOnlyDataset,
+)
+
 
 class BASEDataModule(pl.LightningDataModule):
 
@@ -26,24 +36,24 @@ class BASEDataModule(pl.LightningDataModule):
     def get_sample_set(self, overrides={}):
         sample_params = self.hparams.copy()
         sample_params.update(overrides)
-        #split_file = pjoin(
+        # split_file = pjoin(
         #    eval(f"self.cfg.DATASET.{self.name.upper()}.SPLIT_ROOT"),
         #    'val' + ".txt",
-        #)
+        # )
         split_file = pjoin(
             eval(f"self.cfg.DATASET.{self.name.upper()}.SPLIT_ROOT"),
-            'val' + ".txt",
+            "val" + ".txt",
         )
 
-        #dt_file = 'annotation_egocentric_smpl_npz/egocapture_train_smpl.npz'
-        
-        #return self.Dataset(**sample_params)
+        # dt_file = 'annotation_egocentric_smpl_npz/egocapture_train_smpl.npz'
+
+        # return self.Dataset(**sample_params)
         return self.Dataset(split_file=split_file, **sample_params)
 
     def __getattr__(self, item):
         # train_dataset/val_dataset etc cached like properties
         if item.endswith("_dataset") and not item.startswith("_"):
-            subset = item[:-len("_dataset")]
+            subset = item[: -len("_dataset")]
             item_c = "_" + item
             if item_c not in self.__dict__:
                 subset = subset.upper() if subset != "val" else "EVAL"
@@ -52,13 +62,13 @@ class BASEDataModule(pl.LightningDataModule):
                     eval(f"self.cfg.DATASET.{self.name.upper()}.SPLIT_ROOT"),
                     eval(f"self.cfg.{subset}.SPLIT") + ".txt",
                 )
-                self.__dict__[item_c] = self.Dataset(split_file=split_file,
-                                                     split=split,
-                                                     **self.hparams)
+                self.__dict__[item_c] = self.Dataset(
+                    split_file=split_file, split=split, **self.hparams
+                )
             return getattr(self, item_c)
         classname = self.__class__.__name__
         raise AttributeError(f"'{classname}' object has no attribute '{item}'")
-    
+
     def setup(self, stage=None):
         self.stage = stage
         if stage == "fit" or stage is None:
@@ -68,23 +78,26 @@ class BASEDataModule(pl.LightningDataModule):
             _ = self.test_dataset
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, shuffle=True,
-            persistent_workers=True, **self.dataloader_options)
-    
+        return DataLoader(
+            self.train_dataset,
+            shuffle=True,
+            persistent_workers=True,
+            **self.dataloader_options,
+        )
+
     def val_dataloader(self):
         dataloader_options = self.dataloader_options.copy()
         dataloader_options["shuffle"] = False
-        dataloader_options['num_workers'] = self.cfg.EVAL.NUM_WORKERS
+        dataloader_options["num_workers"] = self.cfg.EVAL.NUM_WORKERS
         dataloader_options["batch_size"] = self.cfg.EVAL.BATCH_SIZE
-        return DataLoader(self.val_dataset, 
-                          persistent_workers=True,
-                          **dataloader_options)
-    
+        return DataLoader(
+            self.val_dataset, persistent_workers=True, **dataloader_options
+        )
+
     def test_dataloader(self):
         # overrides batch_size and num_workers
         dataloader_options = self.dataloader_options.copy()
-        dataloader_options[
-            "batch_size"] = 1 if self.is_mm else self.cfg.TEST.BATCH_SIZE
+        dataloader_options["batch_size"] = 1 if self.is_mm else self.cfg.TEST.BATCH_SIZE
         dataloader_options["num_workers"] = self.cfg.TEST.NUM_WORKERS
         # dataloader_options["drop_last"] = True
         dataloader_options["shuffle"] = False
@@ -93,61 +106,58 @@ class BASEDataModule(pl.LightningDataModule):
             persistent_workers=True,
             **dataloader_options,
         )
-    
+
 
 class EgoBodyDataModule(BASEDataModule):
 
-    def __init__(self,
-                 cfg,
-                 batch_size,
-                 num_workers,
-                 collate_fn=None,
-                 phase="train",
-                 **kwargs):
-        super().__init__(batch_size=batch_size,
-                         num_workers=num_workers,
-                         collate_fn=collate_fn)
+    def __init__(
+        self, cfg, batch_size, num_workers, collate_fn=None, phase="train", **kwargs
+    ):
+        super().__init__(
+            batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn
+        )
         self.save_hyperparameters(logger=False)
 
         self.data_type = cfg.DATA_TYPE
         self.predict_transl = cfg.TRAIN.ABLATION.PREDICT_TRANSL
 
-
-        if self.data_type=='angle':
-            self.mean = np.load('./datasets/EgoBody/our_process_smpl_split_NEW/mean.npy') #mean
-            self.std = np.load('./datasets/EgoBody/our_process_smpl_split_NEW/std.npy') #std
+        if self.data_type == "angle":
+            self.mean = np.load(
+                "./datasets/EgoBody/our_process_smpl_split_NEW/mean.npy"
+            )  # mean
+            self.std = np.load(
+                "./datasets/EgoBody/our_process_smpl_split_NEW/std.npy"
+            )  # std
             self.numdims = 75 if self.predict_transl else 72
-        elif self.data_type=='rot6d':
-            self.mean = np.load('./datasets/EgoBody/our_process_smpl_split_NEW/mean_rot6d.npy') #mean
-            self.std = np.load('./datasets/EgoBody/our_process_smpl_split_NEW/std_rot6d.npy') #std
+        elif self.data_type == "rot6d":
+            self.mean = np.load(
+                "./datasets/EgoBody/our_process_smpl_split_NEW/mean_rot6d.npy"
+            )  # mean
+            self.std = np.load(
+                "./datasets/EgoBody/our_process_smpl_split_NEW/std_rot6d.npy"
+            )  # std
             self.numdims = 144
 
         self.name = "egobody"
         self.njoints = 24
-        self.Dataset = EgoBodyData3 #DatasetEgobody #EgoBodyData
+        self.Dataset = EgoBodyData3  # DatasetEgobody #EgoBodyData
 
         self.cfg = cfg
-        sample_overrides = {
-            "split": "val",
-            "tiny": True,
-            "progress_bar": False
-        }
+        sample_overrides = {"split": "val", "tiny": True, "progress_bar": False}
         self._sample_set = self.get_sample_set(overrides=sample_overrides)
         # Get additional info of the dataset
-        self.nfeats = self._sample_set.nfeats # body_pose, betas, global_orient, transl
+        self.nfeats = self._sample_set.nfeats  # body_pose, betas, global_orient, transl
 
     def renorm(self, features):
+        features = features * torch.tensor(self.std[0, : self.numdims]).to(
+            features.device
+        ) + torch.tensor(self.mean[0, : self.numdims]).to(features.device)
+        # features = features * torch.tensor(self.std[:144]).to(features.device) + torch.tensor(self.mean[:144]).to(features.device)
 
-        
-        features = features * torch.tensor(self.std[0,:self.numdims]).to(features.device) + torch.tensor(self.mean[0,:self.numdims]).to(features.device)
-        #features = features * torch.tensor(self.std[:144]).to(features.device) + torch.tensor(self.mean[:144]).to(features.device)
-        
         return features
-    
+
     def feats2joints(self, features):
         mean = torch.tensor(self.hparams.mean).to(features)
         std = torch.tensor(self.hparams.std).to(features)
         features = features * std + mean
         return recover_from_ric(features, self.njoints)
-    
-

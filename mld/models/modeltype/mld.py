@@ -1373,7 +1373,6 @@ class MLD(BaseModel):
         # ! self.save_for_edo = False # ! previously no self
         if self.save_for_edo:  # ! previously no self
             to_save = "vis_vae"
-
             # ? Don't know if renorm is needed, render only gt at first
             f_ref1 = f_ref.permute(1, 0, 2)  # f_ref
             feats_rst1 = self.renorm(feats_rst).permute(1, 0, 2)  # f_ref_int feats_rst
@@ -1384,22 +1383,24 @@ class MLD(BaseModel):
             #    for i in range(len(seq)):
             #        dict_[seq[i]] = feats_rst1[btc, i, :].detach().cpu().numpy()
             for batch__ in range(feats_rst1.shape[1]):
-                for image__ in range(feats_rst1.shape[0]):
-                    # dict_[dict_images[image__][batch__]] = (
-                    #     feats_rst1[image__, batch__, :].detach().cpu().numpy()
-                    # )
-                    gt_pose = f_ref1[image__, batch__, :].detach().cpu().numpy()
-                    pred_pose = feats_rst1[image__, batch__, :].detach().cpu().numpy()
-                    out_str = f"{self.save_cnt:05x}"
+                # for image__ in range(feats_rst1.shape[0]):
+                # dict_[dict_images[image__][batch__]] = (
+                #     feats_rst1[image__, batch__, :].detach().cpu().numpy()
+                # )
+                gt_pose = f_ref1[:, batch__, :].detach().cpu().numpy()
+                pred_pose = feats_rst1[:, batch__, :].detach().cpu().numpy()
 
-                    os.makedirs(f"{to_save}", exist_ok=True)
-                    os.makedirs(f"{to_save}/gt", exist_ok=True)
-                    os.makedirs(f"{to_save}/pred", exist_ok=True)
+                out_str = f"{self.save_cnt:05x}"
 
-                    np.save(f"{to_save}/gt/{out_str}.npy", gt_pose)
-                    np.save(f"{to_save}/pred/{out_str}.npy", pred_pose)
-                    self.save_cnt += 1
-        exit()
+                os.makedirs(f"{to_save}", exist_ok=True)
+                os.makedirs(f"{to_save}/gt", exist_ok=True)
+                os.makedirs(f"{to_save}/pred", exist_ok=True)
+
+                np.save(f"{to_save}/gt/{out_str}.npy", gt_pose)
+                np.save(f"{to_save}/pred/{out_str}.npy", pred_pose)
+                self.save_cnt += 1
+        if self.save_cnt > 10:
+            exit()
 
         # feats => joints
         idx_ref = 0 if self.estimate == "wearer" else 1

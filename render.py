@@ -1,24 +1,32 @@
 import os
+import pdb
 import random
 import shutil
 import sys
 from pathlib import Path
 
 import natsort
+import numpy as np
 
-try:
-    import bpy
-
-    sys.path.append(os.path.dirname(bpy.data.filepath))
-except ImportError:
-    raise ImportError(
-        "Blender is not properly installed or not launch properly. See README.md to have instruction on how to install and use blender."
-    )
-
-import mld.launch.blender
-import mld.launch.prepare  # noqa
+# import mld.launch.blender
+# import mld.launch.prepare  # noqa
 from mld.config import parse_args
-from mld.utils.joints import smplh_to_mmm_scaling_factor
+
+# from mld.utils.joints import smplh_to_mmm_scaling_factor
+# from mld.render.blender import render
+from mld.render.blender.tools import mesh_detect
+
+# ! debug, uncomment
+# try:
+#     import bpy
+
+#     sys.path.append(os.path.dirname(bpy.data.filepath))
+# except ImportError:
+#     raise ImportError(
+#         "Blender is not properly installed or not launch properly. See README.md to have instruction on how to install and use blender."
+#     )
+
+# from mld.render.video import Video
 
 
 def extend_paths(path, keyids, *, onesample=True, number_of_samples=1):
@@ -56,7 +64,7 @@ def render_cli() -> None:
         # random begin for parallel
         file_list = natsort.natsorted(os.listdir(cfg.RENDER.DIR))
         begin_id = random.randrange(0, len(file_list))
-        file_list = file_list[begin_id:]+file_list[:begin_id]
+        file_list = file_list[begin_id:] + file_list[:begin_id]
 
         # render mesh npy first
         for item in file_list:
@@ -70,16 +78,13 @@ def render_cli() -> None:
 
         print(f"begin to render for {paths[0]}")
 
-    import numpy as np
-
-    from mld.render.blender import render
-    from mld.render.blender.tools import mesh_detect
-    from mld.render.video import Video
     init = True
     for path in paths:
         # check existed mp4 or under rendering
         if cfg.RENDER.MODE == "video":
-            if os.path.exists(path.replace(".npy", ".mp4")) or os.path.exists(path.replace(".npy", "_frames")):
+            if os.path.exists(path.replace(".npy", ".mp4")) or os.path.exists(
+                path.replace(".npy", "_frames")
+            ):
                 print(f"npy is rendered or under rendering {path}")
                 continue
         else:
@@ -90,11 +95,13 @@ def render_cli() -> None:
 
         if cfg.RENDER.MODE == "video":
             frames_folder = os.path.join(
-                output_dir, path.replace(".npy", "_frames").split('/')[-1])
+                output_dir, path.replace(".npy", "_frames").split("/")[-1]
+            )
             os.makedirs(frames_folder, exist_ok=True)
         else:
             frames_folder = os.path.join(
-                output_dir, path.replace(".npy", ".png").split('/')[-1])
+                output_dir, path.replace(".npy", ".png").split("/")[-1]
+            )
 
         try:
             data = np.load(path)

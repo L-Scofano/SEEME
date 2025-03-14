@@ -23,7 +23,7 @@ DATASET_NAME: "egobody"
 #####################################
 TRAIN:
   # Model stage. Optional: "vae", "diffusion"
-  STAGE: vae # ! diffusion
+  STAGE: diffusion # ! vae # ! diffusion
   # Training dataset name
   DATASETS: ["egobody"]
   # Number of dataloader workers
@@ -61,7 +61,7 @@ EVAL:
 # The following are testing settings
 #####################################
 TEST:
-  CHECKPOINTS: ./experiments/mld/s2_scene_interactee/checkpoints/epoch=1999.ckpt #./experiments/mld/s2_our1_scene_interactee/checkpoints/epoch=5999.ckpt # Pretrained model path
+  CHECKPOINTS: experiments/mld/s2_PredictALL_scene/checkpoints/seeme_scene_5999.ckpt # ! ./experiments/mld/s2_scene_interactee/checkpoints/epoch=1999.ckpt #./experiments/mld/s2_our1_scene_interactee/checkpoints/epoch=5999.ckpt # Pretrained model path
   DATASETS: ["egobody"] # training datasets
   SPLIT: test
   BATCH_SIZE: 64 # training Batch size

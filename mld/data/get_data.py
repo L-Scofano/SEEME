@@ -1,13 +1,14 @@
 from os.path import join as pjoin
 
 import numpy as np
-from .humanml.utils.word_vectorizer import WordVectorizer
-from .HumanML3D import HumanML3DDataModule
-from .Kit import KitDataModule
-from .Humanact12 import Humanact12DataModule
-from .Uestc import UestcDataModule
+
 from .EgoBody import EgoBodyDataModule
 from .Gimo import GimoDataModule
+from .Humanact12 import Humanact12DataModule
+from .HumanML3D import HumanML3DDataModule
+from .humanml.utils.word_vectorizer import WordVectorizer
+from .Kit import KitDataModule
+from .Uestc import UestcDataModule
 from .utils import *
 
 
@@ -26,12 +27,10 @@ def get_mean_std(phase, cfg, dataset_name):
     assert name in ["t2m", "kit"]
     # if phase in ["train", "val", "test"]:
     if phase in ["val"]:
-        if name == 't2m':
-            data_root = pjoin(cfg.model.t2m_path, name, "Comp_v6_KLD01",
-                              "meta")
-        elif name == 'kit':
-            data_root = pjoin(cfg.model.t2m_path, name, "Comp_v6_KLD005",
-                              "meta")
+        if name == "t2m":
+            data_root = pjoin(cfg.model.t2m_path, name, "Comp_v6_KLD01", "meta")
+        elif name == "kit":
+            data_root = pjoin(cfg.model.t2m_path, name, "Comp_v6_KLD005", "meta")
         else:
             raise ValueError("Only support t2m and kit")
         mean = np.load(pjoin(data_root, "mean.npy"))
@@ -57,13 +56,14 @@ def get_WordVectorizer(cfg, phase, dataset_name):
 def get_collate_fn(name, phase="train"):
     if name.lower() in ["humanml3d", "kit"]:
         return mld_collate
-    elif name.lower() in ["humanact12", 'uestc']:
+    elif name.lower() in ["humanact12", "uestc"]:
         return a2m_collate
     # else:
     #     return all_collate
     # if phase == "test":
     #     return eval_collate
     # else:
+
 
 def get_collate_ego(name):
     if name.lower() in ["egobody"]:
@@ -113,11 +113,10 @@ def get_datasets(cfg, logger=None, phase="train"):
                 max_motion_length=cfg.DATASET.SAMPLER.MAX_LEN,
                 min_motion_length=cfg.DATASET.SAMPLER.MIN_LEN,
                 max_text_len=cfg.DATASET.SAMPLER.MAX_TEXT_LEN,
-                unit_length=eval(
-                    f"cfg.DATASET.{dataset_name.upper()}.UNIT_LEN"),
+                unit_length=eval(f"cfg.DATASET.{dataset_name.upper()}.UNIT_LEN"),
             )
             datasets.append(dataset)
-        elif dataset_name.lower() in ["humanact12", 'uestc']:
+        elif dataset_name.lower() in ["humanact12", "uestc"]:
             # get collect_fn
             collate_fn = get_collate_fn(dataset_name, phase)
             # get dataset module
@@ -134,36 +133,53 @@ def get_datasets(cfg, logger=None, phase="train"):
                 pose_rep=cfg.DATASET.HUMANACT12.POSE_REP,
                 max_len=cfg.DATASET.SAMPLER.MAX_LEN,
                 min_len=cfg.DATASET.SAMPLER.MIN_LEN,
-                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE
-                if not cfg.DEBUG else 100,
+                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE if not cfg.DEBUG else 100,
                 glob=cfg.DATASET.HUMANACT12.GLOB,
-                translation=cfg.DATASET.HUMANACT12.TRANSLATION)
+                translation=cfg.DATASET.HUMANACT12.TRANSLATION,
+            )
             cfg.DATASET.NCLASSES = dataset.nclasses
             datasets.append(dataset)
         elif dataset_name.lower() in ["amass"]:
             # todo: add amass dataset
             raise NotImplementedError
-        
+
         elif dataset_name.lower() in ["egobody"]:
             data_root = eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT")
 
             # NOT USE COLLATE_FN
             def collate_fn(batch):
                 feats_ref, transl, beta, utils_, scene = batch[0]
-                print(type(feats_ref), type(transl), type(beta), type(utils_), type(scene))
+                print(
+                    type(feats_ref), type(transl), type(beta), type(utils_), type(scene)
+                )
                 quit()
 
             # get collect_fn
-            #collate_fn = get_collate_ego(dataset_name)
+            # collate_fn = get_collate_ego(dataset_name)
             # get dataset module
-            mean = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "our_process_smpl_split_NEW/mean.npy"))
-            std = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "our_process_smpl_split_NEW/std.npy"))
-            
+            mean = np.load(
+                pjoin(
+                    eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
+                    "our_process_smpl_split_NEW/mean.npy",
+                )
+            )
+            std = np.load(
+                pjoin(
+                    eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
+                    "our_process_smpl_split_NEW/std.npy",
+                )
+            )
+
             if cfg.MOTION_LENGTH != 1:
-                motion_dir = pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "our_process_smpl_split_NEW")
+                motion_dir = pjoin(
+                    eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
+                    "our_process_smpl_split_NEW",
+                )
             else:
-                motion_dir = pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "our_process_smpl_split_NEW_forEgoHMR")
-            
+                motion_dir = pjoin(
+                    eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
+                    "our_process_smpl_split_NEW_forEgoHMR",
+                )
 
             dataset = EgoBodyDataModule(
                 datapath=eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
@@ -171,9 +187,8 @@ def get_datasets(cfg, logger=None, phase="train"):
                 batch_size=cfg.TRAIN.BATCH_SIZE,
                 num_workers=cfg.TRAIN.NUM_WORKERS,
                 debug=cfg.DEBUG,
-                #collate_fn=collate_fn,
-                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE
-                if not cfg.DEBUG else 100,
+                # collate_fn=collate_fn,
+                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE if not cfg.DEBUG else 100,
                 mean=mean,
                 std=std,
                 motion_dir=motion_dir,
@@ -188,27 +203,38 @@ def get_datasets(cfg, logger=None, phase="train"):
                 predict_transl=cfg.TRAIN.ABLATION.PREDICT_TRANSL,
                 droid_slam_cut=cfg.TEST.DROID_SLAM_CUT,
                 pose_estimation_task=cfg.TEST.POSE_ESTIMATION_TASK,
-                )
+            )
             datasets.append(dataset)
 
         elif dataset_name.lower() in ["gimo"]:
             data_root = eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT")
 
             # * Load mean and std
-            mean = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "processed/mean.npy")) # (1,N)
-            std = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "processed/std.npy")) # (1,N)
+            mean = np.load(
+                pjoin(
+                    eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
+                    "processed/mean.npy",
+                )
+            )  # (1,N)
+            std = np.load(
+                pjoin(
+                    eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
+                    "processed/std.npy",
+                )
+            )  # (1,N)
 
-            motion_dir = pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "processed")
-            
+            motion_dir = pjoin(
+                eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "processed"
+            )
+
             dataset = GimoDataModule(
                 datapath=eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
                 cfg=cfg,
                 batch_size=cfg.TRAIN.BATCH_SIZE,
                 num_workers=cfg.TRAIN.NUM_WORKERS,
                 debug=cfg.DEBUG,
-                #collate_fn=collate_fn,
-                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE
-                if not cfg.DEBUG else 100,
+                # collate_fn=collate_fn,
+                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE if not cfg.DEBUG else 100,
                 mean=mean,
                 std=std,
                 motion_dir=motion_dir,
@@ -223,20 +249,26 @@ def get_datasets(cfg, logger=None, phase="train"):
                 predict_transl=cfg.TRAIN.ABLATION.PREDICT_TRANSL,
                 droid_slam_cut=cfg.TEST.DROID_SLAM_CUT,
                 pose_estimation_task=cfg.TEST.POSE_ESTIMATION_TASK,
-                )
+            )
             datasets.append(dataset)
-        
+
         elif dataset_name.lower() in ["egobody_old"]:
             data_root = eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT")
 
             # get collect_fn
-            #collate_fn = get_collate_ego(dataset_name)
+            # collate_fn = get_collate_ego(dataset_name)
             # get dataset module
-            mean = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "Mean.npy"))
-            std = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "Std.npy"))
-            
-            motion_dir = pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "our_process_smpl_1frame")
-            
+            mean = np.load(
+                pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "Mean.npy")
+            )
+            std = np.load(
+                pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "Std.npy")
+            )
+
+            motion_dir = pjoin(
+                eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
+                "our_process_smpl_1frame",
+            )
 
             dataset = EgoBodyDataModule(
                 datapath=eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
@@ -244,42 +276,42 @@ def get_datasets(cfg, logger=None, phase="train"):
                 batch_size=cfg.TRAIN.BATCH_SIZE,
                 num_workers=cfg.TRAIN.NUM_WORKERS,
                 debug=cfg.DEBUG,
-                #collate_fn=collate_fn,
-                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE
-                if not cfg.DEBUG else 100,
+                # collate_fn=collate_fn,
+                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE if not cfg.DEBUG else 100,
                 mean=mean,
                 std=std,
                 motion_dir=motion_dir,
-                )
+            )
             datasets.append(dataset)
 
         elif dataset_name.lower() in ["egobody_semiold"]:
             data_root = eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT")
 
             # get collect_fn
-            #collate_fn = get_collate_ego(dataset_name)
+            # collate_fn = get_collate_ego(dataset_name)
             # get dataset module
             #! mean = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "Mean.npy"))
             #! std = np.load(pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "Std.npy"))
-            
-            motion_dir = pjoin(eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "our_process_smpl")
+
+            motion_dir = pjoin(
+                eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"), "our_process_smpl"
+            )
             dr_root = eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT")
-            dt_file = 'annotation_egocentric_smpl_npz/egocapture_train_smpl.npz'
+            dt_file = "annotation_egocentric_smpl_npz/egocapture_train_smpl.npz"
             dataset = EgoBodyDataModule(
-                #dataset_file=dt_file,
-                #data_root=dr_root,
+                # dataset_file=dt_file,
+                # data_root=dr_root,
                 datapath=eval(f"cfg.DATASET.{dataset_name.upper()}.ROOT"),
                 cfg=cfg,
                 batch_size=cfg.TRAIN.BATCH_SIZE,
                 num_workers=cfg.TRAIN.NUM_WORKERS,
                 debug=cfg.DEBUG,
-                #collate_fn=collate_fn,
-                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE
-                if not cfg.DEBUG else 100,
+                # collate_fn=collate_fn,
+                num_seq_max=cfg.DATASET.SAMPLER.MAX_SQE if not cfg.DEBUG else 100,
                 mean=None,
                 std=None,
                 motion_dir=motion_dir,
-                )
+            )
             datasets.append(dataset)
         else:
             raise NotImplementedError
