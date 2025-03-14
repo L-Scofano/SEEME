@@ -28,6 +28,10 @@ bash prepare/download_smpl_model.sh
 | *Scene Only* | ./experiments/mld/s2_PredictALL_scene/checkpoints/epoch=5999.ckpt |
 | *Scene + Interactee* | ./experiments/mld/s2_PredictALL_scene_interactee/checkpoints/epoch=5999.ckpt |
 
+## Data
+
+Data are located under `/media/hdd/luca_s/code/EgoRepo`.
+
 ## Usage
 
 ### Configuration
