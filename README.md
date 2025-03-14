@@ -1,57 +1,70 @@
 # SEE-ME
 
+SEE-ME is a project focused on egocentric motion estimation. This repository provides the necessary setup instructions, training/testing pipelines, and key components for running the model.
 
-## DGX Docker setup
-folder: EgoEstimation/EgoLD
+## Installation
 
-**if container does not exist:**
+### Environment Setup
 
-creare img: ```docker run -it --shm-size 16G -v /raid/home/sampiera/Projects/EgoEstimation:/home/sampiera/EgoEstimation --name alego --gpus all sampiera/ego```
+```bash
+conda create -n seeme python=3.8.18
+conda activate seeme
+pip install -r requirements.txt
+```
 
+### SMPL Model Download
 
-**else:**
+To download and prepare the SMPL model, run:
 
-container: ```docker attach alego```
-
-## Install torch for cuda 11.1 (compatible with Docker container)
-pip install torch==1.10.1+cu111 torchvision==0.11.2+cu111 torchaudio==0.10.1 -f https://download.pytorch.org/whl/cu111/torch_stable.html
-
-## Dowload SMPL
+```bash
 bash prepare/download_smpl_model.sh
+```
 
+### Model Checkpoints
 
-## Run 
-lancio test: sh test.sh
+| **Model Component** | **Checkpoint Path** |
+| --- | --- |
+| *Interactee Only* | ./experiments/mld/s2_PredictALL_interactee/checkpoints/epoch=5999.ckpt |
+| *Scene Only* | ./experiments/mld/s2_PredictALL_scene/checkpoints/epoch=5999.ckpt |
+| *Scene + Interactee* | ./experiments/mld/s2_PredictALL_scene_interactee/checkpoints/epoch=5999.ckpt |
 
-ckpt scene_interactee: CHECKPOINTS: ```./experiments/mld/s2_PredictALL_scene_interactee/checkpoints/epoch=5999.ckpt```
+## Usage
 
-ckpt scene: CHECKPOINTS: ```./experiments/mld/s2_PredictALL_scene/checkpoints/epoch=5999.ckpt```
+### Configuration
 
-ckpt interactee: CHECKPOINTS: ```./experiments/mld/s2_PredictALL_interactee/checkpoints/epoch=5999.ckpt```
+- Modify Line 114 in the configuration file to set the conditioning based on the checkpoint model used.
+- Modify Line 71 in the configuration file to adjust the number of repetitions for testing.
 
-### Notes
-modificare a linea 114 del config il conditioning in base al modello del ckpt
+### Train
 
-file per calcolo metriche: ```/raid/home/sampiera/Projects/EgoEstimation/EgoLD/mld/models/metrics/compute.py```
+To train a model refer to `train.sh`.
 
-linea 71 del confi setti il numero di repetitions per il test
+### Test
 
+To test a model refer to `test.sh`.
 
-## To-Do List
+### Metrics
 
----------- Primary --------------
+Metrics are computed using the script located at:
 
-- [ ] Double check metrics -> All
-- [ ] Compare with EgoEgo (GIMO and Ares) -> Lucas+Alexnet
-- [ ] Fix Traslation (EgoHMR) -> Edo
-- [ ] Better Estimate Interactee (EgoHMR) -> Edo
-- [ ] Train VAE (MLD) on large AMASS/HML3D Datasets (6D or not (?)) -> Lucas+Alexnet
-- [ ] Classifier Free Guidance, Contact Loss, L_orth (EGOHMR) -> Lucas
-- [ ] Fit SMPL
-- [ ] Fix Teaser (maybe) -> Edo 
+```bash
+/raid/home/sampiera/Projects/EgoEstimation/EgoLD/mld/models/metrics/compute.py
+```
 
----------- Secondary --------------
+### Visualizations
 
-- [ ] Translation and rotation as conditioning in diffusion model
-- [ ] Ablation Head + Hand as GT
-- [ ] Specular Model (?)
+Refer to `render.sh`.
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository.
+2. Create a feature branch (git checkout -b feature-name)
+3. Commit your changes (git commit -m "Add new feature").
+4. Push to the branch (git push origin feature-name).
+5.Open a pull request.
+
+## License
+
+This project is licensed under MIT License. Please refer to the LICENSE file for more details.
