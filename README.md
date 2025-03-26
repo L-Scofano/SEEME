@@ -49,11 +49,7 @@ To test a model refer to `test.sh`.
 
 ### Metrics
 
-Metrics are computed using the script located at:
-
-```bash
-/raid/home/sampiera/Projects/EgoEstimation/EgoLD/mld/models/metrics/compute.py
-```
+We refer to evaluation metrics implemented in [MLD](https://github.com/ChenFengYe/motion-latent-diffusion/blob/main/mld/models/metrics/compute.py).
 
 ### Visualizations
 
