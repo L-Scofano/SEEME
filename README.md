@@ -24,13 +24,13 @@ bash prepare/download_smpl_model.sh
 
 | **Model Component** | **Checkpoint Path** |
 | --- | --- |
-| *Interactee Only* | ./experiments/mld/s2_PredictALL_interactee/checkpoints/epoch=5999.ckpt |
-| *Scene Only* | ./experiments/mld/s2_PredictALL_scene/checkpoints/epoch=5999.ckpt |
-| *Scene + Interactee* | ./experiments/mld/s2_PredictALL_scene_interactee/checkpoints/epoch=5999.ckpt |
+| *Interactee Only* | *Not yet available* |
+| *Scene Only* | *Not yet available* |
+| *Scene + Interactee* | *Not yet available* |
 
 ## Data
 
-Data are located under `/media/hdd/luca_s/code/EgoRepo`.
+Please refer to [EgoBody](https://sanweiliti.github.io/egobody/egobody.html) and [GIMO](https://geometry.stanford.edu/projects/gimo/).
 
 ## Usage
 
@@ -69,6 +69,16 @@ Contributions are welcome! Please follow these steps:
 4. Push to the branch (git push origin feature-name).
 5.Open a pull request.
 
-## License
+## Citation
 
-This project is licensed under MIT License. Please refer to the LICENSE file for more details.
+```bibtex
+@misc{scofano2024socialegomeshestimation,
+      title={Social EgoMesh Estimation}, 
+      author={Luca Scofano and Alessio Sampieri and Edoardo De Matteis and Indro Spinelli and Fabio Galasso},
+      year={2024},
+      eprint={2411.04598},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2411.04598}, 
+}
+```
