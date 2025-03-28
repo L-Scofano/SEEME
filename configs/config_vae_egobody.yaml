@@ -1,0 +1,194 @@
+NAME: s1_PredictALL_1e-05 # Experiment name
+DEBUG: False # Debug mode
+ACCELERATOR: 'gpu' # Devices optioncal: “cpu”, “gpu”, “tpu”, “ipu”, “hpu”, “mps, “auto”
+DEVICE: [1] #[0,5,6,7] #[4,5,6,7] #[0,1,2,3,4,5,6,7] #[4,5,6,7] # [0,1,2,3,4,5,6,7] # Index of gpus eg. [0] or [0,1,2,3]
+TEST_DEVICE: [0]
+# Training configuration
+ESTIMATE: 'wearer' # 'interactee' or 'wearer'
+DATA_TYPE: 'angle' # 'angle' or 'rot6d'
+MOTION_LENGTH: 60
+DATASET_NAME: 'egobody'
+
+TRAIN:
+  #---------------------------------
+  STAGE: vae # stage "vae" or "diffusion", "vae_diffusion"
+  
+  #---------------------------------
+  ABLATION:
+    SKIP_CONNECT: True
+    PE_TYPE: mld
+    DIFF_PE_TYPE: mld
+    MD_TRANS: True
+    PREDICT_TRANSL: True
+  DATASETS: ['egobody'] # Training datasets
+  NUM_WORKERS: 11 # Number of workers
+  BATCH_SIZE: 64 # Size of batches
+  START_EPOCH: 0 # Start epochMMOTIONENCODER
+  END_EPOCH: 3000 # End epoch
+  RESUME: '' # Resume training from this path
+  PRETRAINED_VAE: ''
+  CONDITION: 'image' # not consider
+  OPTIM:
+    TYPE: AdamW # Optimizer type
+    LR: 1e-4 # Learning rate
+    STEP_SIZE: 3000
+    GAMMA: 0.5
+
+# Evaluating Configuration
+EVAL:
+  DATASETS: ['egobody'] # Evaluating datasets
+  BATCH_SIZE: 64 # Evaluating Batch size
+  SPLIT: test
+
+# Test Configuration
+TEST:
+  CHECKPOINTS: './experiments/mld/s1_PredictALL_1e-05/checkpoints/epoch=2999.ckpt' #'./experiments/mld/s1_our/checkpoints/epoch=2999.ckpt' # Pretrained model path
+  DATASETS: ['egobody'] # training datasets
+  SPLIT: test
+  BATCH_SIZE: 64 # training Batch size
+  MEAN: False
+  NUM_SAMPLES: 1
+  REPLICATION_TIMES: 1
+  FACT: 1
+  INTERACTEE_PRED: False # pose of the interactee pred by egohmr
+  GLOBAL_ORIENT_PRED: True  # global orientation pred by OUR MODEL
+  BETAS_PRED: False #!! NOTE: we don't need this
+  TRANSL_EGOEGO: False #!! NOTE: this is FOR HEAD
+  GLOBAL_ORIENT_EGOEGO: False #!! NOTE: this is FOR HEAD
+  DROID_SLAM_CUT: False #! true=usi il dataset cappato
+  POSE_ESTIMATION_TASK: False #! NOT WORKING
+  SEE_FUTURE: False #! ABLATION SU WEARER CHE VEDE IL FUTURO DEL INTERACTEE
+
+# Datasets Configuration
+DATASET:
+  JOINT_TYPE: 'humanml3d' # join type
+METRIC:
+  TYPE: ['EgoMetric']
+# Losses Configuration
+LOSS:
+  TYPE: mld # Losses type
+  LAMBDA_LATENT: 1.0e-5 # Lambda for latent Losses
+  LAMBDA_KL: 1.0e-4 # Lambda for kl Losses
+  LAMBDA_REC: 1.0 # Lambda for reconstruction Losses
+  LAMBDA_GEN: 1.0 # Lambda for text-motion generation losses
+  LAMBDA_CROSS: 1.0 # Lambda for reconstruction Losses
+  LAMBDA_CYCLE: 0.0 # Lambda for cycle Losses
+  LAMBDA_PRIOR: 0.0
+  LAMBDA_ROOT: 1.0 #0.00001
+  DIST_SYNC_ON_STEP: False # Sync Losses on step when distributed trained
+
+
+# Model Configuration
+model:
+  vae: true # whether vae model
+  model_type: mld # model type
+  condition: ['text']
+  latent_dim: [1, 256] # latent dimension
+  ff_size: 128 #1024 #
+  num_layers: 5 #9 # number of layers
+  num_head: 1 #4 # number of head layers
+  droupout: 0.1 # dropout rate
+  activation: gelu # activation type
+  guidance_scale: 7.5 #
+  guidance_uncondp: 0.1 # 0.1 0.25
+  nfeats: 75 #72 #72 #72
+  njoints: 24
+  smpl_path: './deps/smpl_models/smpl/SMPL_NEUTRAL.pkl'
+
+
+MODEL:
+  IMAGE_SIZE: 224
+  IMAGE_MEAN: [0.485, 0.456, 0.406]
+  IMAGE_STD: [0.229, 0.224, 0.225]
+  BACKBONE:
+    TYPE: resnet
+    NUM_LAYERS: 50
+    OUT_CHANNELS: 2048
+  FLOW:
+    DIM: 144
+    NUM_LAYERS: 4
+    CONTEXT_FEATURES: 2048
+    LAYER_HIDDEN_FEATURES: 1024
+    LAYER_DEPTH: 2
+  FC_HEAD:
+    NUM_FEATURES: 1024
+
+CAM:
+  FX_NORM_COEFF: 1500
+  FY_NORM_COEFF: 1500
+  CX_NORM_COEFF: 960
+  CY_NORM_COEFF: 540
+
+# Logger configuration
+LOGGER:
+  SACE_CHECKPOINT_EPOCH: 200
+  LOG_EVERY_STEPS: 1
+  VAL_EVERY_STEPS: 200 #10
+  TENSORBOARD: True
+  WANDB:
+    PROJECT: null #null
+    OFFLINE: False
+    RESUME_ID: null
+    ENTITY: 'pinlab-sapienza'
+    GROUP: 'STAGE1'
+
+
+PROSCENE:
+  SMPL:
+    MEAN_PARAMS: ./EgoHMR/data/smpl_mean_params.npz
+  TRAIN:
+    LR: 1e-4
+    WEIGHT_DECAY: 1e-4
+    NUM_TRAIN_SAMPLES: 2
+    NUM_TEST_SAMPLES: 4
+    POSE_2D_NOISE_RATIO: 0.01
+    SMPL_PARAM_NOISE_RATIO: 0.005
+  LOSS_WEIGHTS:
+    V2V_EXP: 0.0
+    V2V_MODE: 0.5
+    # for pelvis-aligned 3d joint loss
+    KEYPOINTS_3D_EXP: 0.0
+    KEYPOINTS_3D_MODE: 0.05
+    # for global 3d joint loss
+    KEYPOINTS_3D_FULL_EXP: 0.0
+    KEYPOINTS_3D_FULL_MODE: 0.02
+    # for cropped image 2d joint loss
+    KEYPOINTS_2D_EXP: 0.001
+    KEYPOINTS_2D_MODE: 0.01
+    # for full image 2d joint loss
+    KEYPOINTS_2D_FULL_EXP: 0.001
+    KEYPOINTS_2D_FULL_MODE: 0.01
+    # smpl params loss
+    GLOBAL_ORIENT_EXP: 0.000
+    GLOBAL_ORIENT_MODE: 0.001  #
+    BODY_POSE_EXP: 0.0
+    BODY_POSE_MODE: 0.001
+    ORTHOGONAL: 0.1
+    BETAS_EXP: 0.0
+    BETAS_MODE: 0.0005
+    TRANSL: 0.1
+    NLL: 0.001
+    ADVERSARIAL: 0.0005
+  MODEL:
+    IMAGE_SIZE: 224
+    IMAGE_MEAN: [0.485, 0.456, 0.406]
+    IMAGE_STD: [0.229, 0.224, 0.225]
+    BACKBONE:
+      TYPE: resnet
+      NUM_LAYERS: 50
+      OUT_CHANNELS: 2048
+    FLOW:
+      DIM: 144
+      NUM_LAYERS: 4
+      CONTEXT_FEATURES: 2048
+      LAYER_HIDDEN_FEATURES: 1024
+      LAYER_DEPTH: 2
+    FC_HEAD:
+      NUM_FEATURES: 1024
+  EXTRA:
+    FOCAL_LENGTH: 5000
+  CAM:
+    FX_NORM_COEFF: 1500
+    FY_NORM_COEFF: 1500
+    CX_NORM_COEFF: 960
+    CY_NORM_COEFF: 540
